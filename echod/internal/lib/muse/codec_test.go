@@ -3,6 +3,7 @@ package muse
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -319,5 +320,16 @@ func TestTranscriptLeavesOutTheRecordingLine(t *testing.T) {
 	}
 	if got := transcript("[file:audio/wav x.wav]"); got != "" {
 		t.Errorf("a recording with no words gave %q", got)
+	}
+}
+
+type notATransport struct{ http.RoundTripper }
+
+func TestNewDoesNotLeanOnTheDefaultTransport(t *testing.T) {
+	old := http.DefaultTransport
+	http.DefaultTransport = notATransport{old}
+	defer func() { http.DefaultTransport = old }()
+	if _, err := New(Config{Store: &memStore{}}); err != nil {
+		t.Fatal(err)
 	}
 }

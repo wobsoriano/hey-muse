@@ -118,8 +118,17 @@ func New(cfg Config) (*Client, error) {
 	if cfg.Version == "" {
 		cfg.Version = "0"
 	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.TLSClientConfig = cfg.TLS.Clone()
+	// A transport of its own, not a clone of the default: the daemon replaces the default with one
+	// that can stop checking certificates (feature/diag), and the tokens sent here never go unchecked.
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          4,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   15 * time.Second,
+		ExpectContinueTimeout: time.Second,
+		TLSClientConfig:       cfg.TLS.Clone(),
+	}
 	userAgent := fmt.Sprintf("musegadget/%s (%s %s) %s", cfg.Version, runtime.GOOS, runtime.GOARCH, runtime.Version())
 	return &Client{
 		cfg:       cfg,
