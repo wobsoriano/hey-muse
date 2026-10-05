@@ -283,6 +283,11 @@ stock sound back. A file the device cannot play leaves the stock sound playing, 
 Alarms and timers work by voice, on the screen, and from Home Assistant. See
 [docs/actions.md](actions.md) for all of them.
 
+The voice answers come from Home Assistant's Assist pipeline unless you choose otherwise on the
+setup page (Sound & Voice, **Voice assistant**). The other choices are speech and chat servers of
+your own, reached directly, and Muse. [Muse](muse.md) has a page of its own, because it sends what
+you say to Meta.
+
 ## 8. Settings lock
 
 A **settings lock** (Show and Spot, off by default) is a PIN the device asks for before its settings
@@ -299,6 +304,7 @@ While the lock is on, the PIN is also asked for when Home Assistant opens the se
 
 - [Dashboards](dashboards.md): Home Assistant dashboards on the screen.
 - [Phone calls](phone.md) through your own SIP provider.
+- [Muse](muse.md) as the voice assistant, in place of Home Assistant's.
 - [Actions](actions.md): everything Home Assistant can ask the device to do, with examples.
 
 ## Questions and problems

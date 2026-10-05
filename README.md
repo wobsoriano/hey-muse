@@ -236,8 +236,8 @@ Echo Show 8 and the Echo Spot, are in [docs/screenshots](docs/screenshots/README
 | | Stock Echo Show 5 (Alexa) | TECHO5 |
 |---|---|---|
 | Operating system | Fire OS (Android) | Alpine Linux, one daemon |
-| Voice assistant | Alexa, in Amazon's cloud | Home Assistant Assist, with any pipeline you run |
-| Where your voice goes | Amazon | Your Home Assistant, encrypted |
+| Voice assistant | Alexa, in Amazon's cloud | Home Assistant Assist, with any pipeline you run. Muse instead, if you choose it ([docs/muse.md](docs/muse.md)) |
+| Where your voice goes | Amazon | Your Home Assistant, encrypted. With Muse chosen, to your own Muse account |
 | Wake word | "Alexa", processed for Amazon | On the device: Alexa, Okay Nabu, Hey Jarvis, Hey Mycroft and eight more |
 | Screen | Alexa cards and ads | Clock, weather, now playing, Home Assistant dashboards, cameras, timers, alarms, settings |
 | Music | Amazon Music and skills | Home Assistant radio lists with cover art, Music Assistant (Sendspin), Home Assistant media, AirPlay and Spotify Connect (new, untested) |
@@ -250,6 +250,18 @@ Echo Show 8 and the Echo Spot, are in [docs/screenshots](docs/screenshots/README
 | Listening on your network | Amazon's services | Home Assistant's encrypted API and the Sendspin player; SSH, web pages, AirPlay and Spotify Connect only when switched on, behind a Wi-Fi firewall. A signed-in phone keeps its own connection out to the provider |
 | Calling | Alexa calling and Drop In | Phone calls through your own SIP provider (TLS and SRTP), placed from Home Assistant or by voice, answered on the screen; device to device calls in the house |
 | Shopping, skills | Yes | **No.** Those are Alexa cloud services |
+
+## Muse, if you want it
+
+TECHO5's voice goes to Home Assistant, and that stays the default. A device can be told to hand its
+voice turns to [Muse](https://gadgets.muse.ai), Meta's AI agent, instead. The wake word is still
+heard on the device, what you say after it goes to your own Muse account as a recording, and the
+device speaks Muse's answer in a built-in voice or a cloud one. Muse can set the device's timers and
+alarms, change its volume and play its radio. It does not control your home through TECHO5.
+
+It needs a Muse subscription, an SDK token of your own and the Muse app, and it is off until you
+choose it on the setup page. Tested on one Echo Show 5 2nd gen, with an iPhone. TECHO5 is not made
+or endorsed by Meta. Setup, privacy and what was not tested: **[docs/muse.md](docs/muse.md)**.
 
 ## Install
 
