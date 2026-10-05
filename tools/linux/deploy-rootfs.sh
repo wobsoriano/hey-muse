@@ -88,6 +88,8 @@ cp "$ROOT/bin/echod-arm" "$STAGE/bin/techo5"
 for c in fbprobe audioprobe rebootto btbridge; do cp "$ROOT/bin/$c-arm" "$STAGE/bin/$c"; done
 # The WebRTC echo canceller helper is C++ built separately (tools/linux/build-aec.sh in WSL); ship it when it is there.
 [ -e "$ROOT/bin/techo5-aec-arm" ] && cp "$ROOT/bin/techo5-aec-arm" "$STAGE/bin/techo5-aec"
+# The built-in voice (SVOX Pico, C) is built separately as well (tools/linux/build-pico.sh, anywhere zig runs).
+[ -e "$ROOT/bin/techo5-pico-arm" ] && cp "$ROOT/bin/techo5-pico-arm" "$STAGE/bin/techo5-pico"
 # The Spotify Connect receiver (librespot, Rust) is built separately too (tools/linux/build-librespot.sh in WSL).
 # The Spot's daemon offers neither receiver (feature/streaming), so its image carries neither.
 [ "$BUILD_TAGS" != spot ] && [ -e "$ROOT/bin/techo5-librespot-arm" ] && cp "$ROOT/bin/techo5-librespot-arm" "$STAGE/bin/techo5-librespot"
@@ -110,6 +112,15 @@ if [ -d "$INPUTS/models" ]; then
 	cp "$INPUTS"/models/*.tflite "$INPUTS"/models/*.json "$STAGE/overlay/usr/share/techo5/models/"
 	for m in "$INPUTS"/models/*.tflite; do
 		cmp -s "$m" "$STAGE/overlay/usr/share/techo5/models/$(basename "$m")" || { echo "model copy differs: $m" >&2; exit 1; }
+	done
+fi
+# The built-in voice's data goes with its helper, where the daemon looks for it (lib/speech), and
+# after the line endings for the same reason: it is binary.
+if [ -e "$STAGE/bin/techo5-pico" ]; then
+	mkdir -p "$STAGE/overlay/usr/share/techo5/pico"
+	cp "$ROOT"/tools/pico/voice/*.bin "$STAGE/overlay/usr/share/techo5/pico/"
+	for m in "$ROOT"/tools/pico/voice/*.bin; do
+		cmp -s "$m" "$STAGE/overlay/usr/share/techo5/pico/$(basename "$m")" || { echo "voice data copy differs: $m" >&2; exit 1; }
 	done
 fi
 

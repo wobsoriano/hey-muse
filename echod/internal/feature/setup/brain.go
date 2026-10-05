@@ -90,8 +90,9 @@ func brainSection(w http.ResponseWriter, token string) {
 	m := b.Muse
 	fmt.Fprint(w, `<p class="note"><strong>Muse</strong> answers through Meta's Muse, which hears what was
 	 said and answers as itself, and can set this device's timers and alarms, play its radio and stop it. It
-	 needs a developer's SDK token from gadgets.muse.ai, the device paired with the Muse app (below), and a
-	 speech endpoint to say the answers with, since Muse answers in words.</p>
+	 needs a developer's SDK token from gadgets.muse.ai and the device paired with the Muse app (below). Muse
+	 answers in words, which the device says in its built-in voice, or in a speech endpoint's with a speech
+	 key.</p>
 	 <label for="sdk">Muse SDK token</label>`)
 	fmt.Fprintf(w, `<input id="sdk" name="sdk" type="password" value="" placeholder="%s" autocomplete="off">
 	 <p><label><input type="checkbox" name="nosdk" value="yes" style="width:auto"> Remove the SDK token</label></p>
@@ -100,10 +101,18 @@ func brainSection(w http.ResponseWriter, token string) {
 	 <p><label><input type="checkbox" name="nospeechkey" value="yes" style="width:auto"> Remove the speech key</label></p>
 	 <label for="speechvoice">Speaking voice</label>
 	 <select id="speechvoice" name="speechvoice">`, keyHint(m.SDKToken != ""), keyHint(m.Speech.Key != ""))
-	for _, v := range speech.Voices {
-		fmt.Fprintf(w, `<option value="%s"%s>%s</option>`, v, selected(v == m.Speech.Voice || (m.Speech.Voice == "" && v == speech.DefaultVoice)), v)
+	chosen := speech.Chosen(m.Speech.Voice, m.Speech.Key)
+	for _, v := range speech.Choices() {
+		fmt.Fprintf(w, `<option value="%s"%s>%s</option>`, v, selected(v == chosen), v.Label())
 	}
-	fmt.Fprintf(w, `</select>
+	fmt.Fprint(w, `</select>`)
+	switch {
+	case !builtInVoice():
+		fmt.Fprint(w, `<p class="note">This image has no built-in voice, so Muse needs a speech key to answer aloud.</p>`)
+	case m.Speech.Key == "":
+		fmt.Fprint(w, `<p class="note">With no speech key, Muse's answers use the built-in voice.</p>`)
+	}
+	fmt.Fprintf(w, `
 	 <label for="speechstyle">How to say it</label>
 	 <input id="speechstyle" name="speechstyle" value="%s" placeholder="warmly, and not too fast" maxlength="500" autocomplete="off">
 	 <label for="speechbase">Speech endpoint (advanced)</label>
@@ -115,6 +124,9 @@ func brainSection(w http.ResponseWriter, token string) {
 		html.EscapeString(m.Speech.Style), html.EscapeString(m.Speech.Base), speech.DefaultBase,
 		html.EscapeString(m.Speech.Model), speech.DefaultModel, speech.DefaultModel)
 }
+
+// builtInVoice is whether this image has the device's own voice (speech.Local); a test says so itself.
+var builtInVoice = func() bool { return speech.Installed().Available() }
 
 func keyHint(set bool) string {
 	if set {
@@ -296,12 +308,12 @@ func saveBrain(r *http.Request) string {
 	if strings.ContainsAny(b.Voice+b.Language+b.Model+b.Muse.Speech.Model+b.Muse.Speech.Style, "\r\n") {
 		return "the voice, language, model and how to say it are one line each"
 	}
-	if b.Muse.Speech.Voice != "" && !slices.Contains(speech.Voices, b.Muse.Speech.Voice) {
+	if b.Muse.Speech.Voice != "" && !slices.Contains(speech.Choices(), speech.Voice(b.Muse.Speech.Voice)) {
 		return "that is not a speaking voice the speech endpoint has"
 	}
 
 	// A secret posted is a secret to write, one ticked away is one to clear, and nothing posted keeps
-	// what is there: which is what Muse's two have to be checked against before anything is saved.
+	// what is there: which is what Muse's own have to be checked against before anything is saved.
 	type secret struct{ field, remove, what string }
 	secrets := []secret{{"key", "nokey", "key"}, {"sdk", "nosdk", "SDK token"}, {"speechkey", "nospeechkey", "speech key"}}
 	willHave := map[string]bool{"key": was.Key != "", "sdk": was.Muse.SDKToken != "", "speechkey": was.Muse.Speech.Key != ""}
@@ -316,8 +328,13 @@ func saveBrain(r *http.Request) string {
 			willHave[s.field] = true
 		}
 	}
-	if b.Mode == config.BrainMuse && (!willHave["sdk"] || !willHave["speechkey"]) {
-		return "answering through Muse needs both the Muse SDK token and the speech key"
+	if b.Mode == config.BrainMuse && !willHave["sdk"] {
+		return "answering through Muse needs the Muse SDK token"
+	}
+	// The speech key is needed only where nothing else can speak: with no key, or with the built-in
+	// voice chosen, the device's own voice is all there is.
+	if b.Mode == config.BrainMuse && !builtInVoice() && (!willHave["speechkey"] || speech.Voice(b.Muse.Speech.Voice) == speech.BuiltIn) {
+		return "this image has no built-in voice, so answering through Muse needs the speech key and one of its voices"
 	}
 
 	if err := config.Set().Brain().Set(b); err != nil {

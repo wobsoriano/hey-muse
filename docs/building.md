@@ -179,6 +179,13 @@ image goes on with `fastboot flash boot` (with the Show in fastboot, docs/instal
 [tools/linux/build-aec.sh](../tools/linux/build-aec.sh) compiles the WebRTC echo canceller helper for
 armv7 (Linux or WSL). `deploy-rootfs.sh` includes `bin/techo5-aec-arm` when it exists.
 
+## Optional: the built-in voice
+
+[tools/linux/build-pico.sh](../tools/linux/build-pico.sh) compiles the built-in voice's helper (SVOX
+Pico, tools/pico) for armv7 with `zig cc`, on macOS, Linux or WSL. `deploy-rootfs.sh` includes
+`bin/techo5-pico-arm` and the voice's data when it exists. Without it Muse can only answer aloud
+through a speech endpoint.
+
 ## Optional: a CPU profile from a device
 
 To see where the daemon spends its time on a unit, turn SSH on and write the number of seconds to a

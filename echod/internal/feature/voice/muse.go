@@ -3,6 +3,7 @@ package voice
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -16,10 +17,11 @@ import (
 )
 
 // Muse answering the turn (config.BrainMuse): the utterance goes to Muse whole, as a voice note,
-// and Muse transcribes and answers it. The device then says the answer through a speech endpoint
-// (lib/speech), because Muse returns words and this device has no voice of its own for them. The
-// connection belongs to feature/muse; here it is only asked. The conversation cannot tell this
-// backend from the others, since it reports the same events in the same order.
+// and Muse transcribes and answers it. The device then says the answer (lib/speech), because Muse
+// returns words: in a speech endpoint's voice when there is a key for one, else in its own, which
+// also steps in when the endpoint fails. The connection belongs to feature/muse; here it is only
+// asked. The conversation cannot tell this backend from the others, since it reports the same
+// events in the same order.
 
 // museLink is the connection a turn asks through: feature/muse's Feature, or a test's stand-in.
 type museLink interface {
@@ -27,23 +29,24 @@ type museLink interface {
 	Ask(ctx context.Context, wav []byte, on func(muse.ReplyEvent)) (muse.Reply, error)
 }
 
-// speakFunc voices text, calling out with the samples at speech.Rate as they arrive.
-type speakFunc func(ctx context.Context, text string, out func(samples []int16) error) error
+// speakFunc says text in voice v, calling out with the samples at 16 kHz as they arrive.
+type speakFunc func(ctx context.Context, v speech.Voice, text string, out func(samples []int16) error) error
 
-// museChunk is the least audio handed to the conversation at a time, in 16 kHz samples: 100 ms. The
-// endpoint answers in reads of a few kilobytes, and the reply's queue holds chunkQueue of whatever
+// museChunk is the least audio handed to the conversation at a time, in 16 kHz samples: 100 ms. A
+// voice arrives in reads of a few kilobytes, and the reply's queue holds chunkQueue of whatever
 // it is given, so each read must not take a slot of its own.
 const museChunk = mic.Rate / 10
 
 type viaMuse struct {
 	link  museLink
+	voice func() speech.Voice // the one the settings choose, asked for every reply
 	speak speakFunc
 	post  func(event)
 	utterance
 }
 
-func newViaMuse(link museLink, speak speakFunc, post func(event)) *viaMuse {
-	return &viaMuse{link: link, speak: speak, post: post}
+func newViaMuse(link museLink, voice func() speech.Voice, speak speakFunc, post func(event)) *viaMuse {
+	return &viaMuse{link: link, voice: voice, speak: speak, post: post}
 }
 
 func (m *viaMuse) Name() string { return "muse" }
@@ -59,11 +62,20 @@ func (m *viaMuse) End() error {
 	return nil
 }
 
-// speakMuse voices text through the endpoint the settings name, read afresh for every reply so a
-// voice chosen on the screen is the next answer's.
-func speakMuse(ctx context.Context, text string, out func(samples []int16) error) error {
+// museVoice is the voice the settings choose, read afresh for every reply so a voice chosen on the
+// screen is the next answer's.
+func museVoice() speech.Voice {
 	s := config.Get().Brain.Muse.Speech
-	return speech.Client{Base: s.Base, Key: s.Key, Model: s.Model, Voice: s.Voice, Style: s.Style}.Speak(ctx, text, out)
+	return speech.Chosen(s.Voice, s.Key)
+}
+
+// speakMuse says text in voice v: through the endpoint the settings name, or in the device's own.
+func speakMuse(ctx context.Context, v speech.Voice, text string, out func(samples []int16) error) error {
+	s := config.Get().Brain.Muse.Speech
+	return speech.Speaker{
+		Cloud: speech.Client{Base: s.Base, Key: s.Key, Model: s.Model, Style: s.Style},
+		Local: speech.Installed(),
+	}.Speak(ctx, v, text, out)
 }
 
 // answer asks Muse and reports the way Home Assistant's pipeline events are reported.
@@ -135,6 +147,11 @@ func (m *viaMuse) answer(ctx context.Context, pcm []byte) {
 // chunks of at least museChunk, then the stream's end and the run's. It returns when the first
 // audio was handed over, and what went wrong if the voice did not finish. Nothing is posted once
 // ctx has ended.
+//
+// An endpoint that fails before any of its voice was played (a bad or spent key, no network) has
+// the same answer said in the device's own voice instead: the words are already on the screen, and
+// a reply that is only read is not what was asked for. Once its voice has started there is no going
+// back over what was said, and the turn fails as it always did.
 func (m *viaMuse) say(ctx context.Context, text string, start time.Time) (firstAudio time.Duration, err error) {
 	m.post(event{kind: evReplyText, text: text})
 	// An answer that asks something wants one, and gets it without the wake word again: what Home
@@ -143,7 +160,6 @@ func (m *viaMuse) say(ctx context.Context, text string, start time.Time) (firstA
 		m.post(event{kind: evContinue})
 	}
 
-	var down speech.Downsampler
 	held := make([]int16, 0, 2*museChunk)
 	flush := func() {
 		if len(held) == 0 || ctx.Err() != nil {
@@ -155,13 +171,26 @@ func (m *viaMuse) say(ctx context.Context, text string, start time.Time) (firstA
 		m.post(event{kind: evStreamAudio, audio: bytesOf(held)})
 		held = held[:0]
 	}
-	err = m.speak(ctx, text, func(samples []int16) error {
-		held = append(held, down.Write(samples)...)
-		if len(held) >= museChunk {
-			flush()
+	speak := func(v speech.Voice) error {
+		return m.speak(ctx, v, text, func(samples []int16) error {
+			held = append(held, samples...)
+			if len(held) >= museChunk {
+				flush()
+			}
+			return ctx.Err()
+		})
+	}
+	v := m.voice()
+	err = speak(v)
+	if err != nil && ctx.Err() == nil && !v.Local() && firstAudio == 0 {
+		slog.Warn("muse: the speech endpoint failed, so the answer is in the built-in voice", "voice", v, "err", err)
+		held = held[:0]
+		if lerr := speak(speech.BuiltIn); lerr != nil {
+			err = fmt.Errorf("%w; %w", err, lerr)
+		} else {
+			err = nil
 		}
-		return ctx.Err()
-	})
+	}
 	if err != nil || ctx.Err() != nil {
 		return firstAudio, err
 	}

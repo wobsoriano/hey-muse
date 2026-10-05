@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/HuskerMinion/techo5/echod/internal/lib/muse"
+	"github.com/HuskerMinion/techo5/echod/internal/lib/speech"
 )
 
 // posted collects what the backend reports, under a lock because the answer runs on its own
@@ -49,9 +52,9 @@ func (l fakeLink) Ask(ctx context.Context, wav []byte, on func(muse.ReplyEvent))
 	return l.ask(ctx, wav, on)
 }
 
-// speaking is a voice of n samples at 24 kHz handed over per bytes of read, as the endpoint does.
+// speaking is a voice of n samples at 16 kHz handed over per at a time, as a read brings them.
 func speaking(n, per int) speakFunc {
-	return func(ctx context.Context, text string, out func([]int16) error) error {
+	return func(ctx context.Context, _ speech.Voice, text string, out func([]int16) error) error {
 		for n > 0 {
 			k := min(per, n)
 			if err := out(make([]int16, k)); err != nil {
@@ -62,6 +65,9 @@ func speaking(n, per int) speakFunc {
 		return nil
 	}
 }
+
+// builtIn is the settings choosing the device's own voice.
+func builtIn() speech.Voice { return speech.BuiltIn }
 
 func sameKinds(a, b []eventKind) bool {
 	if len(a) != len(b) {
@@ -93,7 +99,7 @@ func TestMuseTurnIsReportedInOrder(t *testing.T) {
 		on(muse.Settled{Text: "Done. Anything else? Also, the weather is fine."})
 		settles++
 		return muse.Reply{Text: "Done. Anything else? Also, the weather is fine.", Heard: "set a timer"}, nil
-	}}, speaking(3*2400, 2400), func(e event) { got = append(got, e) })
+	}}, builtIn, speaking(3*museChunk, museChunk), func(e event) { got = append(got, e) })
 
 	m.answer(context.Background(), someAudio)
 
@@ -133,7 +139,7 @@ func TestMuseEmptyAndFailedTurns(t *testing.T) {
 	}{
 		"nothing said": {
 			ask:   func(context.Context, []byte, func(muse.ReplyEvent)) (muse.Reply, error) { return muse.Reply{}, nil },
-			speak: speaking(2400, 2400),
+			speak: speaking(museChunk, museChunk),
 			want:  []eventKind{evRunEnd},
 		},
 		"answered without settling": {
@@ -141,14 +147,14 @@ func TestMuseEmptyAndFailedTurns(t *testing.T) {
 				on(muse.Heard{Text: "hello"})
 				return muse.Reply{Text: "Hi.", Heard: "hello"}, nil
 			},
-			speak: speaking(2400, 2400),
+			speak: speaking(museChunk, museChunk),
 			want:  []eventKind{evHeard, evReplyText, evStreamAudio, evStreamEnd, evRunEnd},
 		},
 		"muse failed": {
 			ask: func(context.Context, []byte, func(muse.ReplyEvent)) (muse.Reply, error) {
 				return muse.Reply{}, errors.New("muse: Muse did not reply")
 			},
-			speak: speaking(2400, 2400),
+			speak: speaking(museChunk, museChunk),
 			want:  []eventKind{evError},
 			code:  "intent-failed",
 		},
@@ -158,13 +164,15 @@ func TestMuseEmptyAndFailedTurns(t *testing.T) {
 				on(muse.Settled{Text: "Hi."})
 				return muse.Reply{Text: "Hi."}, nil
 			},
-			speak: func(context.Context, string, func([]int16) error) error { return errors.New("speech: no key") },
-			want:  []eventKind{evHeard, evReplyText, evError},
-			code:  "tts-failed",
+			speak: func(context.Context, speech.Voice, string, func([]int16) error) error {
+				return errors.New("speech: the built-in voice: not found")
+			},
+			want: []eventKind{evHeard, evReplyText, evError},
+			code: "tts-failed",
 		},
 	} {
 		p := &posted{}
-		m := newViaMuse(fakeLink{ask: c.ask}, c.speak, p.post)
+		m := newViaMuse(fakeLink{ask: c.ask}, builtIn, c.speak, p.post)
 		m.answer(context.Background(), someAudio)
 		if got := p.kinds(); !sameKinds(got, c.want) {
 			t.Errorf("%s: events %v, want %v", name, got, c.want)
@@ -178,15 +186,15 @@ func TestMuseEmptyAndFailedTurns(t *testing.T) {
 	}
 }
 
-// Small reads from the endpoint are gathered into chunks of at least a hundred milliseconds, and
-// what is left at the end goes out as it is.
+// Small reads of a voice are gathered into chunks of at least a hundred milliseconds, and what is
+// left at the end goes out as it is.
 func TestMuseChunksAreCoalesced(t *testing.T) {
 	p := &posted{}
-	// 35 reads of 10 ms at 24 kHz: 350 ms, which is 5600 samples at 16 kHz.
+	// 35 reads of 10 ms: 350 ms, which is 5600 samples.
 	m := newViaMuse(fakeLink{ask: func(_ context.Context, _ []byte, on func(muse.ReplyEvent)) (muse.Reply, error) {
 		on(muse.Settled{Text: "Hi."})
 		return muse.Reply{Text: "Hi."}, nil
-	}}, speaking(35*240, 240), p.post)
+	}}, builtIn, speaking(35*160, 160), p.post)
 	m.answer(context.Background(), someAudio)
 
 	var sizes []int
@@ -220,14 +228,14 @@ func TestMuseStopPostsNothingAfter(t *testing.T) {
 				on(muse.Settled{Text: "Too late."})
 				return muse.Reply{}, ctx.Err()
 			},
-			speak: speaking(2400, 2400),
+			speak: speaking(museChunk, museChunk),
 		},
 		"speaking": {
 			ask: func(ctx context.Context, _ []byte, on func(muse.ReplyEvent)) (muse.Reply, error) {
 				on(muse.Settled{Text: "A long answer."})
 				return muse.Reply{Text: "A long answer."}, nil
 			},
-			speak: func(ctx context.Context, _ string, out func([]int16) error) error {
+			speak: func(ctx context.Context, _ speech.Voice, _ string, out func([]int16) error) error {
 				if err := out(make([]int16, 2400)); err != nil {
 					return err
 				}
@@ -238,7 +246,7 @@ func TestMuseStopPostsNothingAfter(t *testing.T) {
 		},
 	} {
 		p := &posted{}
-		m := newViaMuse(fakeLink{ask: c.ask}, c.speak, p.post)
+		m := newViaMuse(fakeLink{ask: c.ask}, builtIn, c.speak, p.post)
 		if err := m.Start(""); err != nil {
 			t.Fatal(err)
 		}
@@ -266,6 +274,83 @@ func TestMuseStopPostsNothingAfter(t *testing.T) {
 		for _, e := range p.all() {
 			if e.kind == evError || e.kind == evRunEnd || e.kind == evStreamEnd {
 				t.Errorf("%s: a stopped turn reported %v", name, e.kind)
+			}
+		}
+	}
+}
+
+// Which voice says the answer: the device's own when that is what the settings come to, and also
+// when the endpoint fails before any of its voice was played, a short held piece included. Once
+// the endpoint's voice has started, its failure is the turn's; and with no voice left at all the
+// answer is still on the screen and the turn fails as a voice does.
+func TestMuseVoiceAndItsFallback(t *testing.T) {
+	refused := errors.New("speech: 401 Unauthorized: bad key")
+	absent := errors.New("speech: the built-in voice: not found")
+	// cloud says n samples and then fails with err; the device's own says half a second, or fails.
+	engines := func(asked *[]speech.Voice, n int, err, localErr error) speakFunc {
+		return func(ctx context.Context, v speech.Voice, text string, out func([]int16) error) error {
+			*asked = append(*asked, v)
+			if v.Local() {
+				if localErr != nil {
+					return localErr
+				}
+				return speaking(5*museChunk, museChunk)(ctx, v, text, out)
+			}
+			if n > 0 {
+				if oerr := out(make([]int16, n)); oerr != nil {
+					return oerr
+				}
+			}
+			return err
+		}
+	}
+	spoke := []eventKind{evReplyText, evStreamAudio, evStreamAudio, evStreamAudio, evStreamAudio, evStreamAudio, evStreamEnd, evRunEnd}
+	for name, c := range map[string]struct {
+		voice    speech.Voice
+		n        int
+		err      error
+		localErr error
+		asked    []speech.Voice
+		want     []eventKind
+		msg      []string
+	}{
+		"built in":                   {voice: speech.BuiltIn, asked: []speech.Voice{speech.BuiltIn}, want: spoke},
+		"the endpoint":               {voice: "coral", n: museChunk, asked: []speech.Voice{"coral"}, want: []eventKind{evReplyText, evStreamAudio, evStreamEnd, evRunEnd}},
+		"refused":                    {voice: "coral", err: refused, asked: []speech.Voice{"coral", speech.BuiltIn}, want: spoke},
+		"failed with a piece held":   {voice: "coral", n: museChunk / 2, err: refused, asked: []speech.Voice{"coral", speech.BuiltIn}, want: spoke},
+		"failed after it started":    {voice: "coral", n: museChunk, err: refused, asked: []speech.Voice{"coral"}, want: []eventKind{evReplyText, evStreamAudio, evError}, msg: []string{"bad key"}},
+		"refused and no voice here":  {voice: "coral", err: refused, localErr: absent, asked: []speech.Voice{"coral", speech.BuiltIn}, want: []eventKind{evReplyText, evError}, msg: []string{"bad key", "not found"}},
+		"built in and no voice here": {voice: speech.BuiltIn, localErr: absent, asked: []speech.Voice{speech.BuiltIn}, want: []eventKind{evReplyText, evError}, msg: []string{"not found"}},
+	} {
+		p := &posted{}
+		var asked []speech.Voice
+		m := newViaMuse(fakeLink{ask: func(_ context.Context, _ []byte, on func(muse.ReplyEvent)) (muse.Reply, error) {
+			on(muse.Settled{Text: "Hi."})
+			return muse.Reply{Text: "Hi."}, nil
+		}}, func() speech.Voice { return c.voice }, engines(&asked, c.n, c.err, c.localErr), p.post)
+		m.answer(context.Background(), someAudio)
+
+		if !slices.Equal(asked, c.asked) {
+			t.Errorf("%s: asked %v, want %v", name, asked, c.asked)
+		}
+		if got := p.kinds(); !sameKinds(got, c.want) {
+			t.Errorf("%s: events %v, want %v", name, got, c.want)
+			continue
+		}
+		all := p.all()
+		for _, e := range all {
+			if e.kind == evStreamAudio && len(e.audio) != 2*museChunk {
+				t.Errorf("%s: a chunk of %d bytes, want %d", name, len(e.audio), 2*museChunk)
+			}
+		}
+		if last := all[len(all)-1]; last.kind == evError {
+			if last.code != "tts-failed" {
+				t.Errorf("%s: failed with %q", name, last.code)
+			}
+			for _, want := range c.msg {
+				if !strings.Contains(last.msg, want) {
+					t.Errorf("%s: the error %q does not say %q", name, last.msg, want)
+				}
 			}
 		}
 	}

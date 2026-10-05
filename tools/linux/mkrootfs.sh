@@ -15,6 +15,8 @@
 #   bin/techo5 bin/fbprobe bin/audioprobe bin/rebootto bin/btbridge  Go binaries, armv7
 #   bin/techo5-aec                                         WebRTC echo canceller helper (C++, build-aec.sh), optional
 #   bin/techo5-librespot                                   Spotify Connect receiver (Rust, build-librespot.sh), optional
+#   bin/techo5-pico                                        the built-in voice's helper (C, build-pico.sh), optional;
+#                                                          its data is in the overlay, usr/share/techo5/pico
 #   tools/slotctl tools/techo5-lib.sh tools/packages-rootfs.txt
 #   overlay/                                               tools/linux/rootfs from the repo
 #   inputs/alpine-minirootfs-*-armv7.tar.gz
@@ -102,7 +104,8 @@ if [ -e "$IN/inputs/vendor.tar.gz" ]; then
 	tar -xzf "$IN/inputs/vendor.tar.gz" -C "$R" vendor
 	# The Wi-Fi driver the device boots with (etc/techo5/device.conf in the overlay; the Show's by default).
 	WIFI_MODULE=/vendor/lib/modules/mt76x8_wlan.ko
-	[ -r "$IN/overlay/etc/techo5/device.conf" ] && WIFI_MODULE=$(sed -n 's/^WIFI_MODULE=//p' "$IN/overlay/etc/techo5/device.conf" | tr -d '"')
+	[ -r "$IN/overlay/etc/techo5/device.conf" ] && WIFI_MODULE=$(sed -n 's/^WIFI_MODULE=//p' "$IN/overlay/etc/techo5/device.conf" | tr -d '
+"')
 	[ -e "$R$WIFI_MODULE" ] || { echo "mkrootfs: vendor tree has no $WIFI_MODULE" >&2; exit 1; }
 else
 	say "no vendor tree: the unit's own is mounted at /vendor"
@@ -110,7 +113,7 @@ fi
 
 # Our binaries and scripts.
 install -d "$R/usr/local/bin" "$R/usr/local/sbin" "$R/lib" "$R/var/lib/bluetooth" "$R/var/lib/bluealsa" "$R/usr/var/lib/bluealsa"
-for b in techo5 fbprobe audioprobe rebootto btbridge techo5-aec techo5-librespot; do
+for b in techo5 fbprobe audioprobe rebootto btbridge techo5-aec techo5-librespot techo5-pico; do
 	[ -e "$IN/bin/$b" ] && install -m 755 "$IN/bin/$b" "$R/usr/local/bin/$b"
 done
 install -m 755 "$IN/tools/slotctl" "$R/usr/local/sbin/slotctl"

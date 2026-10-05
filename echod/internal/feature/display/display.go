@@ -51,6 +51,7 @@ import (
 	"github.com/HuskerMinion/techo5/echod/internal/hardware/ambient"
 	"github.com/HuskerMinion/techo5/echod/internal/hardware/screen"
 	"github.com/HuskerMinion/techo5/echod/internal/hardware/touch"
+	"github.com/HuskerMinion/techo5/echod/internal/lib/avatar"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/hass"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/wifi"
 	"github.com/HuskerMinion/techo5/echod/internal/service"
@@ -130,6 +131,10 @@ type Display struct {
 
 	view   voice.State
 	viewAt time.Time
+
+	// avatar is the Muse character's sprite sheets, when a set is installed (render_avatar.go); set
+	// once at Start.
+	avatar *avatar.Set
 	volume int
 	volAt  time.Time
 
@@ -400,7 +405,7 @@ func (d *Display) Name() string { return "screen" }
 // turnShown is whether the turn's picture is the page: nothing drawn before it in render.draw has the
 // screen. Only then does it need its fast frames.
 func turnShown(s scene) bool {
-	return s.eq != nil && s.call.Phase == phone.Idle && !s.ring.any() && !s.setupAsking && !s.bt.Pairing &&
+	return (s.eq != nil || s.avatar != nil) && s.call.Phase == phone.Idle && !s.ring.any() && !s.setupAsking && !s.bt.Pairing &&
 		!s.showWifi && !s.showSheet && !s.showCamera && !s.showAlert && !s.showCalendar && !s.showRadar &&
 		!s.showWeather && !s.showDash
 }
@@ -1688,6 +1693,7 @@ func (d *Display) Start(context.Context) error {
 	d.wide = w > 1000 || h > 1000
 	d.mu.Unlock()
 	d.logo = newSplash(w, h)
+	d.avatar = loadAvatar()
 	d.mu.Lock()
 	d.booting, d.started = true, time.Now()
 	d.mu.Unlock()
@@ -1843,7 +1849,10 @@ func (d *Display) frame() time.Duration {
 		// A screen command: the screen it asked for is the answer, not the words.
 		s.phase, s.heard, s.reply = "idle", "", ""
 	}
-	if equalizerOn() && (s.phase == "listening" || s.phase == "thinking" || s.phase == "replying" || s.phase == "lingering") {
+	if _, turn := avatar.ForPhase(s.phase); turn && avatarOn() {
+		s.avatar = d.avatar
+	}
+	if s.avatar == nil && equalizerOn() && (s.phase == "listening" || s.phase == "thinking" || s.phase == "replying" || s.phase == "lingering") {
 		s.eq = eqFor(s.phase, nightNow(now), now)
 		s.eq.wave = waveOn()
 	}
@@ -2062,6 +2071,9 @@ func (d *Display) frame() time.Duration {
 	}
 	if (s.slideshow != nil || s.slideshowScreensaver != nil) && home.Get().SlideshowTransitioning() {
 		return home.SlideshowFrame
+	}
+	if turnShown(s) && s.avatar != nil {
+		return s.avatar.Interval() // the character is moving
 	}
 	if turnShown(s) && !(s.phase == "lingering" && s.eq.quiet) {
 		if s.eq.wave {

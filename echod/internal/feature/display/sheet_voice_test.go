@@ -3,11 +3,13 @@
 package display
 
 import (
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/HuskerMinion/techo5/echod/internal/config"
+	"github.com/HuskerMinion/techo5/echod/internal/lib/speech"
 )
 
 // setServerVoices stands in for an answer from the speech server.
@@ -97,5 +99,39 @@ func TestVoiceLabel(t *testing.T) {
 		if got := voiceLabel(name); got != want {
 			t.Errorf("voiceLabel(%q) = %q, want %q", name, got, want)
 		}
+	}
+}
+
+// For Muse the built-in voice is first in the picker, and with no speech key it is the only one,
+// since no other could be heard. A tap saves the voice that was under it.
+func TestMuseVoicePicker(t *testing.T) {
+	config.Use(filepath.Join(t.TempDir(), "state.json"))
+	w := config.Set().Brain()
+	if err := w.Set(config.Brain{Mode: config.BrainMuse, Muse: config.Muse{Speech: config.Speech{Voice: "coral"}}}); err != nil {
+		t.Fatal(err)
+	}
+	p, ok := voicePicker()
+	if !ok || !slices.Equal(p.opts, []string{"Built in"}) || p.cur != 0 || voiceRow().value != "Built in" {
+		t.Errorf("with no speech key: picker %+v, row %q", p, voiceRow().value)
+	}
+
+	if err := w.SetSpeechKey("sk-1"); err != nil {
+		t.Fatal(err)
+	}
+	p, _ = voicePicker()
+	if len(p.opts) != 1+len(speech.Voices) || p.opts[0] != "Built in" || p.opts[p.cur] != "Coral" || voiceRow().value != "Coral" {
+		t.Errorf("with a speech key: picker %+v, row %q", p, voiceRow().value)
+	}
+	chooseVoice(0)
+	if got := config.Get().Brain.Muse.Speech.Voice; got != "builtin" {
+		t.Errorf("after choosing the first: voice %q", got)
+	}
+	chooseVoice(1)
+	if got := config.Get().Brain.Muse.Speech.Voice; got != speech.Voices[0] {
+		t.Errorf("after choosing the second: voice %q", got)
+	}
+	chooseVoice(len(speech.Voices) + 1)
+	if got := config.Get().Brain.Muse.Speech.Voice; got != speech.Voices[0] {
+		t.Errorf("a tap past the list chose %q", got)
 	}
 }

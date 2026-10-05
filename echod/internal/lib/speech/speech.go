@@ -1,6 +1,7 @@
-// Package speech turns text into a voice through an OpenAI-style endpoint (/v1/audio/speech), for a
-// device with no speech server of its own on the network. The audio is asked for as raw PCM and handed
-// on as it arrives, so a long answer starts playing before it has all been made.
+// Package speech turns text into a voice, for a device with no speech server of its own on the
+// network: through an OpenAI-style endpoint (/v1/audio/speech, Client), or in the device's own voice
+// (Local), which needs nothing but the image. Either way the audio is handed on as it arrives, so a
+// long answer starts playing before it has all been made. Voice says which of the two speaks.
 package speech
 
 import (
@@ -87,11 +88,23 @@ func (c Client) Speak(ctx context.Context, text string, out func(samples []int16
 		return fmt.Errorf("speech: %s: %s", resp.Status, strings.TrimSpace(string(msg)))
 	}
 
+	if err := stream(resp.Body, out); err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		return err
+	}
+	return nil
+}
+
+// stream reads 16-bit little-endian samples from r to its end and calls out with them as they
+// arrive. An error of out's is returned as it is.
+func stream(r io.Reader, out func(samples []int16) error) error {
 	// A read may end on half a sample; the odd byte waits for the next one.
 	buf := make([]byte, 8192)
 	held := 0
 	for {
-		n, err := resp.Body.Read(buf[held:])
+		n, err := r.Read(buf[held:])
 		n += held
 		even := n &^ 1
 		if even > 0 {
@@ -111,9 +124,6 @@ func (c Client) Speak(ctx context.Context, text string, out func(samples []int16
 			return nil
 		}
 		if err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
 			return fmt.Errorf("speech: %w", err)
 		}
 	}

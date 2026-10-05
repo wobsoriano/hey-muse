@@ -18,13 +18,13 @@ import (
 
 // The Sound card's Speaking voice row: which voice answers in, where the device asks its own speech
 // server rather than Home Assistant (config.Brain.Direct), or says Muse's answers through a speech
-// endpoint (config.BrainMuse). Under Home Assistant the voice belongs to the assistant there, and the
-// row says so.
+// endpoint or in its own voice (config.BrainMuse). Under Home Assistant the voice belongs to the
+// assistant there, and the row says so.
 //
 // For the direct pipeline the list is the speech server's own, asked for in the background: the card
 // is drawn many times a second and cannot wait on the network. Until it arrives, or when the server
-// does not answer, a short list of common Piper voices stands in. For Muse it is the endpoint's fixed
-// few (speech.Voices).
+// does not answer, a short list of common Piper voices stands in. For Muse it is the built-in voice
+// and then the endpoint's fixed few (museVoices).
 
 // voicesFresh is how long a list from the server is used before it is asked again.
 const voicesFresh = 10 * time.Minute
@@ -155,15 +155,27 @@ func voiceLabel(name string) string {
 	return label
 }
 
-// museVoice is the voice Muse's answers are said in, as the endpoint names it.
-func museVoice(b config.Brain) string { return cmpOr(b.Muse.Speech.Voice, speech.DefaultVoice) }
+// museVoice is the voice Muse's answers are said in.
+func museVoice(b config.Brain) speech.Voice {
+	return speech.Chosen(b.Muse.Speech.Voice, b.Muse.Speech.Key)
+}
+
+// museVoices is what the picker offers for Muse: the built-in voice first, then the endpoint's. With
+// no speech key only the built-in one can speak, so it is the only one offered: a voice that could
+// be tapped and then not heard would look broken.
+func museVoices(b config.Brain) []speech.Voice {
+	if b.Muse.Speech.Key == "" {
+		return []speech.Voice{speech.BuiltIn}
+	}
+	return speech.Choices()
+}
 
 // voiceRow is the Sound card's Speaking voice row.
 func voiceRow() settingRow {
 	b := config.Get().Brain
 	switch {
 	case b.Mode == config.BrainMuse:
-		return settingRow{id: "ttsvoice", label: "Speaking voice", sub: "How Muse's answers sound", kind: ctlChoice, value: capitalize(museVoice(b))}
+		return settingRow{id: "ttsvoice", label: "Speaking voice", sub: "How Muse's answers sound", kind: ctlChoice, value: capitalize(museVoice(b).Label())}
 	case b.Direct():
 		refreshVoices(b)
 		return settingRow{id: "ttsvoice", label: "Speaking voice", sub: "How answers sound", kind: ctlChoice, value: voiceLabel(b.Voice)}
@@ -176,9 +188,9 @@ func voicePicker() (pickerView, bool) {
 	p := pickerView{title: "Speaking voice", cur: -1}
 	switch {
 	case b.Mode == config.BrainMuse:
-		for i, name := range speech.Voices {
-			p.opts = append(p.opts, capitalize(name))
-			if name == museVoice(b) {
+		for i, v := range museVoices(b) {
+			p.opts = append(p.opts, capitalize(v.Label()))
+			if v == museVoice(b) {
 				p.cur = i
 			}
 		}
@@ -197,15 +209,16 @@ func voicePicker() (pickerView, bool) {
 // is the server's default. The next answer is spoken in it: both read the voice afresh for every
 // reply.
 func chooseVoice(i int) {
-	if config.Get().Brain.Mode == config.BrainMuse {
-		if i < 0 || i >= len(speech.Voices) {
+	if b := config.Get().Brain; b.Mode == config.BrainMuse {
+		voices := museVoices(b)
+		if i < 0 || i >= len(voices) {
 			return
 		}
-		if err := config.Set().Brain().SetSpeechVoice(speech.Voices[i]); err != nil {
+		if err := config.Set().Brain().SetSpeechVoice(string(voices[i])); err != nil {
 			slog.Warn("saving the speaking voice failed", "err", err)
 			return
 		}
-		slog.Info("speaking voice", "voice", speech.Voices[i])
+		slog.Info("speaking voice", "voice", voices[i])
 		return
 	}
 	sv := &shownVoices

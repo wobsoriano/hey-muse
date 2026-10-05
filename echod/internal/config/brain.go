@@ -37,8 +37,8 @@ type Brain struct {
 	Muse Muse `json:"muse"`
 }
 
-// Muse is Meta's Muse answering the turn, and an OpenAI-style speech endpoint saying its answer:
-// Muse returns text and the device has no voice of its own for it.
+// Muse is Meta's Muse answering the turn, and what says its answer, since Muse returns text: an
+// OpenAI-style speech endpoint, or the device's own voice.
 type Muse struct {
 	// SDKToken is the developer's token from gadgets.muse.ai, which pairing hands to the Muse app and
 	// the device reports to Muse once. It is a secret, never shown again once saved.
@@ -46,11 +46,12 @@ type Muse struct {
 	Speech   Speech `json:"speech"`
 }
 
-// Speech is the endpoint that voices Muse's answers (lib/speech). Empty Base, Model and Voice are
-// the library's defaults. Key is a secret, never shown again once saved.
+// Speech is what voices Muse's answers (lib/speech). Empty Base, Model and Voice are the library's
+// defaults. Key is a secret, never shown again once saved; without one the device's own voice speaks.
 type Speech struct {
 	Base  string `json:"base,omitempty"`
 	Model string `json:"model,omitempty"`
+	// Voice is one of the endpoint's by name, or "builtin" for the device's own (speech.Voice).
 	Voice string `json:"voice,omitempty"`
 	// Style is how to say it, in words, for a model that takes instructions.
 	Style string `json:"style,omitempty"`

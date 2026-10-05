@@ -219,7 +219,7 @@ func newConversation(vs *esphome.VoiceSatellite) *conversation {
 	}
 	c.ha = ha{vs: vs}
 	c.direct = newDirect(c.post)
-	c.muse = newViaMuse(gadget.Get(), speakMuse, c.post)
+	c.muse = newViaMuse(gadget.Get(), museVoice, speakMuse, c.post)
 	c.be = c.ha
 
 	vs.OnPipelineEvent = c.pipeline

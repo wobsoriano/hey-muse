@@ -103,6 +103,16 @@ Wake word models (in the root filesystem, /usr/share/techo5/models)
   community collection: it records no separate license, author or training data for each model, so
   MIT from the repository is all that can be said about them here.
 
+Built-in voice (in the root filesystem: /usr/local/bin/techo5-pico and /usr/share/techo5/pico)
+  SVOX Pico — Apache License 2.0
+  Copyright (C) 2008-2009 SVOX AG, Baslerstr. 30, 8048 Zuerich, Switzerland.
+  The speech engine (tools/pico/lib) and its U.S. English voice data, en-US_ta.bin and
+  en-US_lh0_sg.bin (tools/pico/voice), taken from https://github.com/naggety/picotts. Changes:
+  picopltf.h takes the byte order from the compiler rather than from <endian.h>, and picoextapi.c
+  and picoextapi.h, which nothing here calls, are left out. tools/pico/lib/NOTICE is SVOX's notice
+  and the license in full.
+  tools/pico/techo5-pico.c, the program around the engine, is this project's own.
+
 Linux kernel, https://git.kernel.org (GPL-2.0)
   Releases ship a kernel inside the boot images techo5-boot-<version>.img (Echo Show 5 2nd gen,
   cronos) and techo5-boot-checkers-<version>.img (1st gen, checkers): Linux 4.9.337 for arm64. It is
