@@ -52,7 +52,7 @@ With Python 3, `adb`, `fastboot` and `git` (setup for each system:
 [getting started](getting-started.md#set-up-your-computer-once)):
 
 ```
-git clone https://github.com/HuskerMinion/techo5
+git clone https://github.com/wobsoriano/techo5
 cd techo5
 python3 tools/install-show.py --dry-run   # download and check the release only
 python3 tools/install-show.py
@@ -130,7 +130,7 @@ The boot image is the kernel plus the small rescue environment that sets a unit 
   (checkers), `techo5-boot-checkers-<version>.img`, and on an Echo Show 8 (crown),
   `techo5-boot-crown-<version>.img`, each built against that board's own
   kernel and device tree — from the same
-  [release](https://github.com/HuskerMinion/techo5/releases) as the root filesystem. The boot image
+  [release](https://github.com/wobsoriano/techo5/releases) as the root filesystem. The boot image
   changes rarely, so most releases don't carry one; when yours doesn't, take it from the newest
   earlier release that does. It carries no SSH key, so steps 4 and 5 are typed into the unit's
   **USB serial console**.
@@ -152,7 +152,7 @@ adb -s <serial> shell uname -r      # must be 4.9.337-g8d928c5176cc
 ## 2. Put the root filesystem on the unit
 
 Download `techo5-rootfs-<version>.tar.gz` from the latest
-[release](https://github.com/HuskerMinion/techo5/releases) and copy it to the unit's storage, which
+[release](https://github.com/wobsoriano/techo5/releases) and copy it to the unit's storage, which
 TECHO5 can read from its rescue environment:
 
 ```

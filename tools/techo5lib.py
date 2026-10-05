@@ -27,7 +27,7 @@ ALPINE_SHA256 = '50942d567e6ee422c16cb46d5c282ed9d8adc9007c2a483faf4148a18c64ce3
 # (echod/internal/update/trust.go, releaseKey). An installer writes a root filesystem to a unit, so a
 # manifest is believed only when this key signed it: HTTPS alone would let anything that can present a
 # certificate this computer accepts hand the installer a root filesystem of its own.
-RELEASE_KEY = 'KVUuQUbhyKwPBbIneqFEvXYSI+3Hkfu/heCTy5YNVMk='
+RELEASE_KEY = 'XcUTVRF2r+5MFZO/GdCLQ//kc1Ok6bc34yJPtCOr/ek='
 
 # The USB serial consoles: TECHO5 Linux on the Show 5 and the Spot (Linux Foundation ids, told apart by
 # the serial number on the kernel command line), and on the Dot (Google ids, with the unit's serial

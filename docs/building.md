@@ -34,7 +34,7 @@ over SSH), and the kernel needs a Linux machine or virtual machine.
 Get the code (the three repositories side by side, if you build for more than one device):
 
 ```
-git clone https://github.com/HuskerMinion/techo5
+git clone https://github.com/wobsoriano/techo5
 cd techo5
 ```
 
@@ -223,6 +223,9 @@ are PowerShell scripts for the maintainer's Windows machine. Devices only take a
 project's key, and the installers check the same signature before they believe a manifest, so a fork
 publishing its own releases needs its own key, a daemon built with its public key
 (`echod/internal/update/trust.go`) and the same key in `tools/techo5lib.py` (`RELEASE_KEY`).
+
+This repository is such a fork. Its own release, from a Mac, is in
+[releasing-the-fork.md](releasing-the-fork.md).
 
 `TECHO5_SIGN_KEY` never leaves the maintainer's machine — it is not a GitHub Actions secret, and the
 build itself does not need to happen locally to keep that true. Pushing a release tag runs
