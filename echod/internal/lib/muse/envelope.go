@@ -1,6 +1,7 @@
-// Ported from Meta's Muse Gadget SDK (linux/src/musegadget/noise/envelope.py, framing.py and
-// transport.py), Apache-2.0. Modified: rewritten in Go, with the four frame kinds folded into one
-// type.
+// Ported from linux/src/musegadget/noise/envelope.py, framing.py and transport.py in Meta's Muse
+// Gadget SDK, Copyright (c) Meta Platforms, Inc. and affiliates, licensed under the Apache License,
+// Version 2.0 (LICENSE in this directory). Modified: rewritten in Go, with the four frame kinds
+// folded into one type.
 
 package muse
 

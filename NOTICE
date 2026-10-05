@@ -103,6 +103,34 @@ Wake word models (in the root filesystem, /usr/share/techo5/models)
   community collection: it records no separate license, author or training data for each model, so
   MIT from the repository is all that can be said about them here.
 
+Muse client and Bluetooth setup (in the daemon)
+  Muse Gadget SDK, Apache License 2.0
+  Copyright (c) Meta Platforms, Inc. and affiliates.
+  https://github.com/facebookincubator/muse-gadget-sdk, at commit
+  b9008abba7dc4109c66212b9b82e459d08b98b85. These files are ports to Go of the SDK's Linux client
+  (linux/src/musegadget), each changed from its source, and each says at its top which SDK file
+  it came from and what was changed:
+    - echod/internal/lib/muse: api.go, client.go, envelope.go, muse.go, proto.go, session.go and
+      turn.go, from muse_api.py, service.py, executor.py, identity.py, config.py, link_client.py
+      and noise/ (envelope.py, framing.py, transport.py, _proto.py). session.go and turn.go add
+      the chat subscription, reply matching and voice notes, which the Linux client does not have
+      and the SDK's ESP32 firmware does (esp32/components/muse).
+    - echod/internal/lib/muse/pairing: framing.go, gatt.go, messages.go, network.go, session.go,
+      setup.go and verify.go, from ble_framing.py, ble_server.py, identity.py, pairing.py,
+      ble_setup.py, network.py, cli.py and muse_api.py.
+    - echod/internal/lib/bluez/gatt.go, from ble_server.py.
+  The two image settings Muse setup needs, bluetoothd without its battery plugin
+  (tools/linux/techo5-lib.sh) and ExchangeMTU = 256 (tools/linux/mkrootfs.sh), follow what the
+  SDK's linux/install.sh sets.
+  Test vectors, echod/internal/lib/muse/pairing/testdata/link_pairing_v5.json (not shipped in any
+  release): copied unchanged from linux/tests/vectors/link_pairing_v5.json. sdk_phone.py beside it
+  is this project's own and imports the SDK from a checkout; no SDK code is copied into it.
+  The license in full is echod/internal/lib/muse/LICENSE. The SDK ships no NOTICE file.
+  Not covered, and not here: Meta says the SDK's Apache license does not cover its default avatar,
+  so neither the character nor the code that draws it is in this repository or in any release.
+  tools/muse-avatar/make_sprites.py builds the pictures from the user's own SDK checkout.
+  TECHO5 is not made or endorsed by Meta. Muse is Meta's.
+
 Built-in voice (in the root filesystem: /usr/local/bin/techo5-pico and /usr/share/techo5/pico)
   SVOX Pico — Apache License 2.0
   Copyright (C) 2008-2009 SVOX AG, Baslerstr. 30, 8048 Zuerich, Switzerland.

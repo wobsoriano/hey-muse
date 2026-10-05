@@ -1,5 +1,7 @@
-// Ported from Meta's Muse Gadget SDK (linux/src/musegadget/muse_api.py), Apache-2.0.
-// Modified: rewritten in Go, and a failure is returned to the caller where the SDK logged it.
+// Ported from linux/src/musegadget/muse_api.py in Meta's Muse Gadget SDK, Copyright (c) Meta
+// Platforms, Inc. and affiliates, licensed under the Apache License, Version 2.0 (LICENSE in this
+// directory). Modified: rewritten in Go, and a failure is returned to the caller where the SDK
+// logged it.
 
 package muse
 

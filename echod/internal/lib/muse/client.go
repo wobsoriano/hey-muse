@@ -1,6 +1,8 @@
-// Ported from Meta's Muse Gadget SDK (linux/src/musegadget/service.py, and the command spec
-// shape of executor.py), Apache-2.0. Modified: rewritten in Go, with the state kept by the caller,
-// rotated tokens held until they are saved, and the connection state reported as it changes.
+// Ported from linux/src/musegadget/service.py, and the command spec shape of executor.py, in Meta's
+// Muse Gadget SDK, Copyright (c) Meta Platforms, Inc. and affiliates, licensed under the Apache
+// License, Version 2.0 (LICENSE in this directory). Modified: rewritten in Go, with the state kept
+// by the caller, rotated tokens held until they are saved, and the connection state reported as it
+// changes.
 
 package muse
 

@@ -1,6 +1,8 @@
-// Ported from Meta's Muse Gadget SDK by way of its MicroPython and C ports (the reply matching
-// in link.py and link.c, which extend linux/src/musegadget/link_client.py), Apache-2.0.
-// Modified: rewritten in Go, and the stored user message's text is kept as what Muse heard.
+// Extends linux/src/musegadget/link_client.py in Meta's Muse Gadget SDK, Copyright (c) Meta
+// Platforms, Inc. and affiliates, licensed under the Apache License, Version 2.0 (LICENSE in this
+// directory). Modified: rewritten in Go, with reply matching added, and the stored user message's
+// text kept as what Muse heard. The SDK's Linux client has no reply matching. This one reads the
+// chat events that the SDK's ESP32 firmware reads (esp32/components/muse, under the same license).
 
 package muse
 
