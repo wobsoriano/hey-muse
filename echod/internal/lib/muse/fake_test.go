@@ -19,11 +19,9 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// fakeMuse stands in for the Muse API and a VM, over TLS on one port. It mirrors
-// muse-tufty/tests/fake_muse.py and muse-psp/tests/fake_muse_psp.py, whose event shapes were
+// fakeMuse stands in for the Muse API and a VM, over TLS on one port. Its event shapes were
 // captured from the real service: change it only to match something observed, never to make a
-// test pass. The one departure is that the stored user message carries the words in display_text,
-// where those fakes put a placeholder.
+// test pass.
 type fakeMuse struct {
 	t   *testing.T
 	srv *httptest.Server

@@ -69,7 +69,7 @@ func TestFrameRoundTrip(t *testing.T) {
 		{stream: 3, kind: frameResponse, status: 403},
 		{stream: 1 << 40, kind: frameBody, data: []byte{0, 1, 2}},
 		{stream: 4, kind: frameBody, endBody: true},
-		{stream: 5, kind: frameReset, code: resetCancelled, reason: "cancelled"},
+		{stream: 5, kind: frameReset, code: resetCanceled, reason: "canceled"},
 		{stream: 6, kind: frameReset},
 	} {
 		got, err := decodeFrame(encodeFrame(f))
@@ -245,7 +245,7 @@ func event(name string, payload map[string]any) chatEvent {
 	return e
 }
 
-// The matching rules of _Turn.reply in the MicroPython port.
+// The rules by which a turn picks out its own reply.
 func TestTurnMatching(t *testing.T) {
 	tn := newTurn()
 	// Before the acknowledgment: someone else's message, then our echo, then the reply starts.

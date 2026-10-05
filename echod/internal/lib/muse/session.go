@@ -753,7 +753,7 @@ func (s *session) sendChat(ctx context.Context, in AskInput, ack *request) (int6
 	for start := 0; err == nil && start < len(body); start += bodyChunk {
 		if ctx.Err() != nil {
 			// Half a recording is no use to Muse, so the stream is withdrawn.
-			_ = s.write(frame{stream: id, kind: frameReset, code: resetCancelled, reason: "cancelled"})
+			_ = s.write(frame{stream: id, kind: frameReset, code: resetCanceled, reason: "canceled"})
 			return id, ctx.Err()
 		}
 		end := min(len(body), start+bodyChunk)

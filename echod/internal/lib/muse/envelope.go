@@ -38,8 +38,8 @@ type frame struct {
 	reason  string // reset
 }
 
-// resetCancelled is the reset code for a stream its opener gave up on.
-const resetCancelled = 1
+// resetCanceled is the reset code for a stream its opener gave up on.
+const resetCanceled = 1
 
 func appendHeaders(b []byte, field int, headers []header) []byte {
 	for _, h := range headers {

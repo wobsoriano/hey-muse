@@ -170,10 +170,10 @@ func (c *Client) setState(next ConnState) {
 
 // Ask says one thing to Muse and waits for the whole answer. on, which may be nil, hears the
 // answer arrive: Heard for a voice note, ReplyText as the text grows, Settled when it looks
-// complete. It runs on the calling goroutine, so once Ask has returned, for a cancelled ctx or
+// complete. It runs on the calling goroutine, so once Ask has returned, for a canceled ctx or
 // anything else, it is never called again.
 //
-// One Ask can be open at a time. Cancelling ctx stops the waiting, but a message Muse has already
+// One Ask can be open at a time. Canceling ctx stops the waiting, but a message Muse has already
 // taken stays said.
 func (c *Client) Ask(ctx context.Context, in AskInput, on func(ReplyEvent)) (Reply, error) {
 	switch in.kind {

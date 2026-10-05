@@ -717,7 +717,7 @@ func TestCancelMidUploadWithdrawsTheVoiceNote(t *testing.T) {
 	if _, err := h.client.Ask(context.Background(), Text("after"), nil); err != nil {
 		t.Fatal(err)
 	}
-	if indexOf(h.fake.log(), "reset cancelled") < 0 {
+	if indexOf(h.fake.log(), "reset canceled") < 0 {
 		t.Errorf("the upload was not reset: %q", h.fake.log())
 	}
 	if seen := receive(t, vm.chats, "the chat"); seen.body["message"] != "after" {

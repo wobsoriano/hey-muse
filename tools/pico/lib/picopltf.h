@@ -66,8 +66,8 @@
 #define PICO_PLATFORM_STRING "UnknownPlatform"
 #endif
 
-/* Changed for this project: the compiler's own byte order macro, since
- * neither macOS nor the PSP toolchain has <endian.h>. */
+/* Changed for TECHO5: the compiler's own byte order macro, since not every
+ * toolchain this is built with has <endian.h>. */
 #if defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define PICO_ENDIANNESS ENDIANNESS_BIG
 #else

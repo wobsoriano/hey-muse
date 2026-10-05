@@ -16,13 +16,14 @@ import (
 	"time"
 )
 
-// TestInteropWithTheSDK runs the client against the Python fake of the C port, which is built on
-// Meta's own code: the SDK's Noise XX responder, its chunk framing and its envelope codec. It is
-// the check that this package's wire format is the SDK's and not merely consistent with itself.
+// TestInteropWithTheSDK runs the client against a Python fake of Muse that is built on Meta's own
+// code: the SDK's Noise XX responder, its chunk framing and its envelope codec. It is the check
+// that this package's wire format is the SDK's and not merely consistent with itself.
 //
-// It needs uv and the two sibling checkouts, so it runs only when pointed at the fake:
+// The fake is not in this repository, and it needs uv and an SDK checkout, so the test runs only
+// when pointed at one:
 //
-//	MUSE_INTEROP_FAKE=~/Documents/tmp/muse-psp/tests/fake_muse_psp.py go test -run Interop ./internal/lib/muse/
+//	MUSE_INTEROP_FAKE=/path/to/fake_muse.py go test -run Interop ./internal/lib/muse/
 func TestInteropWithTheSDK(t *testing.T) {
 	script := os.Getenv("MUSE_INTEROP_FAKE")
 	if script == "" {
