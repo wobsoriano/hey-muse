@@ -32,6 +32,7 @@ import (
 	_ "github.com/HuskerMinion/techo5/echod/internal/feature/maintenance"
 	_ "github.com/HuskerMinion/techo5/echod/internal/feature/media"
 	_ "github.com/HuskerMinion/techo5/echod/internal/feature/microphone"
+	_ "github.com/HuskerMinion/techo5/echod/internal/feature/muse"
 	_ "github.com/HuskerMinion/techo5/echod/internal/feature/mute"
 	_ "github.com/HuskerMinion/techo5/echod/internal/feature/phone"
 	_ "github.com/HuskerMinion/techo5/echod/internal/feature/presence"

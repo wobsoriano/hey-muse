@@ -17,6 +17,7 @@ import (
 	"github.com/HuskerMinion/techo5/echod/internal/feature/home"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/voice"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/llm"
+	"github.com/HuskerMinion/techo5/echod/internal/lib/speech"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/triggers"
 )
 
@@ -81,7 +82,7 @@ func (a *Assistant) Think(ctx context.Context, heard string) (string, error) {
 		added = append(added, m)
 		if len(m.ToolCalls) == 0 {
 			a.remember(added)
-			return spoken(m.Content), nil
+			return speech.Spoken(m.Content), nil
 		}
 		for _, call := range m.ToolCalls {
 			result := run(ts, call)
@@ -173,15 +174,6 @@ func instructions(b config.Brain, now time.Time) string {
 		s.WriteString(p)
 	}
 	return s.String()
-}
-
-// spoken tidies an answer for speech: a model told not to use markdown sometimes does anyway, and
-// its typographic punctuation (a non-breaking hyphen, a curly apostrophe) is plain for the voice.
-func spoken(s string) string {
-	r := strings.NewReplacer("**", "", "__", "", "`", "", "#", "",
-		"‑", "-", "‐", "-", "–", "-", "—", ", ", "‘", "'", "’", "'", "“", `"`, "”", `"`,
-		" ", " ", " ", " ")
-	return strings.TrimSpace(r.Replace(s))
 }
 
 // run does one call, and says what happened in words the model reads.

@@ -12,16 +12,19 @@ import (
 
 	"github.com/HuskerMinion/techo5/echod/internal/config"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/safe"
+	"github.com/HuskerMinion/techo5/echod/internal/lib/speech"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/wyoming"
 )
 
 // The Sound card's Speaking voice row: which voice answers in, where the device asks its own speech
-// server rather than Home Assistant (config.Brain.Direct). Under Home Assistant the voice belongs to
-// the assistant there, and the row says so.
+// server rather than Home Assistant (config.Brain.Direct), or says Muse's answers through a speech
+// endpoint (config.BrainMuse). Under Home Assistant the voice belongs to the assistant there, and the
+// row says so.
 //
-// The list is the speech server's own, asked for in the background: the card is drawn many times a
-// second and cannot wait on the network. Until it arrives, or when the server does not answer, a
-// short list of common Piper voices stands in.
+// For the direct pipeline the list is the speech server's own, asked for in the background: the card
+// is drawn many times a second and cannot wait on the network. Until it arrives, or when the server
+// does not answer, a short list of common Piper voices stands in. For Muse it is the endpoint's fixed
+// few (speech.Voices).
 
 // voicesFresh is how long a list from the server is used before it is asked again.
 const voicesFresh = 10 * time.Minute
@@ -152,34 +155,59 @@ func voiceLabel(name string) string {
 	return label
 }
 
+// museVoice is the voice Muse's answers are said in, as the endpoint names it.
+func museVoice(b config.Brain) string { return cmpOr(b.Muse.Speech.Voice, speech.DefaultVoice) }
+
 // voiceRow is the Sound card's Speaking voice row.
 func voiceRow() settingRow {
 	b := config.Get().Brain
-	if !b.Direct() {
-		return settingRow{label: "Speaking voice", sub: "Home Assistant: Settings, Voice assistants", kind: ctlValue, value: "Set there"}
+	switch {
+	case b.Mode == config.BrainMuse:
+		return settingRow{id: "ttsvoice", label: "Speaking voice", sub: "How Muse's answers sound", kind: ctlChoice, value: capitalize(museVoice(b))}
+	case b.Direct():
+		refreshVoices(b)
+		return settingRow{id: "ttsvoice", label: "Speaking voice", sub: "How answers sound", kind: ctlChoice, value: voiceLabel(b.Voice)}
 	}
-	refreshVoices(b)
-	return settingRow{id: "ttsvoice", label: "Speaking voice", sub: "How answers sound", kind: ctlChoice, value: voiceLabel(b.Voice)}
+	return settingRow{label: "Speaking voice", sub: "Home Assistant: Settings, Voice assistants", kind: ctlValue, value: "Set there"}
 }
 
 func voicePicker() (pickerView, bool) {
 	b := config.Get().Brain
-	if !b.Direct() {
-		return pickerView{}, false
-	}
 	p := pickerView{title: "Speaking voice", cur: -1}
-	for i, name := range pickerVoices(b) {
-		p.opts = append(p.opts, voiceLabel(name))
-		if name == b.Voice {
-			p.cur = i
+	switch {
+	case b.Mode == config.BrainMuse:
+		for i, name := range speech.Voices {
+			p.opts = append(p.opts, capitalize(name))
+			if name == museVoice(b) {
+				p.cur = i
+			}
+		}
+	case b.Direct():
+		for i, name := range pickerVoices(b) {
+			p.opts = append(p.opts, voiceLabel(name))
+			if name == b.Voice {
+				p.cur = i
+			}
 		}
 	}
 	return p, len(p.opts) > 0
 }
 
-// chooseVoice saves the i'th voice of the list the picker showed; the first is the server's default.
-// The next answer is spoken in it: the direct pipeline reads the voice afresh for every reply.
+// chooseVoice saves the i'th voice of the list the picker showed; for the direct pipeline the first
+// is the server's default. The next answer is spoken in it: both read the voice afresh for every
+// reply.
 func chooseVoice(i int) {
+	if config.Get().Brain.Mode == config.BrainMuse {
+		if i < 0 || i >= len(speech.Voices) {
+			return
+		}
+		if err := config.Set().Brain().SetSpeechVoice(speech.Voices[i]); err != nil {
+			slog.Warn("saving the speaking voice failed", "err", err)
+			return
+		}
+		slog.Info("speaking voice", "voice", speech.Voices[i])
+		return
+	}
 	sv := &shownVoices
 	sv.Lock()
 	names := sv.names

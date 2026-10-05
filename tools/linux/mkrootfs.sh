@@ -71,6 +71,14 @@ if ! $APK --root "$R" $arch --no-cache add "$IN"/inputs/apks312/*.apk; then
 fi
 $APK --root "$R" $arch info -v | sort > "$R/etc/techo5-packages"
 
+# Muse setup over Bluetooth LE (echod lib/bluez gatt.go): bluetoothd offers an ATT MTU of 517, the
+# Android Muse app writes MTU-3 bytes uncapped, and Android refuses a write over 512, so setup stalls
+# after its Wi-Fi step. 256 is what Meta's own installer sets.
+if [ -f "$R/etc/bluetooth/main.conf" ]; then
+	sed -i 's/^#*[[:space:]]*ExchangeMTU[[:space:]]*=.*/ExchangeMTU = 256/' "$R/etc/bluetooth/main.conf"
+	grep -q '^ExchangeMTU = 256$' "$R/etc/bluetooth/main.conf" || { echo "mkrootfs: bluez's main.conf has no ExchangeMTU line to set" >&2; exit 1; }
+fi
+
 # avahi and the receivers (AirPlay, Spotify Connect; feature/streaming): these Android kernels give a
 # network socket only to a member of the inet group (3003). avahi drops root for its own user; the
 # receivers run as their own, streaming, which owns nothing else. avahi announces nothing of its own,

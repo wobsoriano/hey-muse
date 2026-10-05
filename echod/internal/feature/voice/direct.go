@@ -37,13 +37,59 @@ const maxUtterance = 60 * mic.Rate * 2
 // directChunk is how much audio goes to the recognizer in one event.
 const directChunk = 3200
 
-type direct struct {
-	post func(event)
-
+// utterance is one turn's audio, collected whole for a backend that answers it once the speaker has
+// finished, under a context that Stop ends: a turn that is over posts nothing more.
+type utterance struct {
 	mu     sync.Mutex
 	pcm    []byte
 	cancel context.CancelFunc
 	ctx    context.Context
+}
+
+func (u *utterance) Start(string) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.cancel != nil {
+		u.cancel()
+	}
+	u.ctx, u.cancel = context.WithCancel(context.Background())
+	u.pcm = u.pcm[:0]
+	return nil
+}
+
+func (u *utterance) Audio(frame []byte) error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.ctx == nil || len(u.pcm)+len(frame) > maxUtterance {
+		return nil
+	}
+	u.pcm = append(u.pcm, frame...)
+	return nil
+}
+
+// take is the turn's context and everything heard, or a nil context when no turn is open.
+func (u *utterance) take() (context.Context, []byte) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	pcm := append([]byte(nil), u.pcm...)
+	u.pcm = u.pcm[:0]
+	return u.ctx, pcm
+}
+
+func (u *utterance) Stop() error {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.cancel != nil {
+		u.cancel()
+	}
+	u.ctx, u.cancel = nil, nil
+	u.pcm = u.pcm[:0]
+	return nil
+}
+
+type direct struct {
+	post func(event)
+	utterance
 }
 
 func newDirect(post func(event)) *direct { return &direct{post: post} }
@@ -52,50 +98,12 @@ func (d *direct) Name() string { return "direct" }
 
 func (d *direct) Ready() bool { return config.Get().Brain.Direct() }
 
-func (d *direct) Start(string) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if d.cancel != nil {
-		d.cancel()
-	}
-	d.ctx, d.cancel = context.WithCancel(context.Background())
-	d.pcm = d.pcm[:0]
-	return nil
-}
-
-func (d *direct) Audio(frame []byte) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if d.ctx == nil || len(d.pcm)+len(frame) > maxUtterance {
-		return nil
-	}
-	d.pcm = append(d.pcm, frame...)
-	return nil
-}
-
 // End hands the utterance over to be answered. Not here: this runs on the send queue, and a model
 // thinking for two seconds would hold the next turn's start behind it.
 func (d *direct) End() error {
-	d.mu.Lock()
-	ctx := d.ctx
-	pcm := append([]byte(nil), d.pcm...)
-	d.pcm = d.pcm[:0]
-	d.mu.Unlock()
-	if ctx == nil {
-		return nil
+	if ctx, pcm := d.take(); ctx != nil {
+		safe.Go("direct turn", func() { d.answer(ctx, pcm) })
 	}
-	safe.Go("direct turn", func() { d.answer(ctx, pcm) })
-	return nil
-}
-
-func (d *direct) Stop() error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	if d.cancel != nil {
-		d.cancel()
-	}
-	d.ctx, d.cancel = nil, nil
-	d.pcm = d.pcm[:0]
 	return nil
 }
 
@@ -156,11 +164,7 @@ func (d *direct) answer(ctx context.Context, pcm []byte) {
 	}
 	slog.Info("direct turn answered", "heard_ms", heardAt.Milliseconds(), "thought_ms", thoughtAt.Milliseconds(),
 		"spoken_ms", time.Since(start).Milliseconds())
-	voice = media.ToVoiceRate(voice, f.Rate)
-	out := make([]byte, 2*len(voice))
-	for i, s := range voice {
-		out[2*i], out[2*i+1] = byte(s), byte(s>>8)
-	}
+	out := bytesOf(media.ToVoiceRate(voice, f.Rate))
 	if ctx.Err() != nil {
 		return
 	}
@@ -171,11 +175,7 @@ func (d *direct) answer(ctx context.Context, pcm []byte) {
 
 // transcribe sends the utterance, brought up to speaking loudness, and returns the words.
 func transcribe(ctx context.Context, b config.Brain, pcm []byte) (string, error) {
-	samples := make([]int16, len(pcm)/2)
-	for i := range samples {
-		samples[i] = int16(uint16(pcm[2*i]) | uint16(pcm[2*i+1])<<8)
-	}
-	samples = media.Normalize(samples)
+	samples := media.Normalize(samplesOf(pcm))
 	lang := b.Language
 	if lang == "" {
 		lang = "en"
@@ -196,4 +196,22 @@ func transcribe(ctx context.Context, b config.Brain, pcm []byte) (string, error)
 		}
 	}
 	return t.Finish()
+}
+
+// samplesOf and bytesOf are 16-bit little-endian audio as the microphone hands it and as the
+// recognizer and the speaker take it.
+func samplesOf(pcm []byte) []int16 {
+	samples := make([]int16, len(pcm)/2)
+	for i := range samples {
+		samples[i] = int16(uint16(pcm[2*i]) | uint16(pcm[2*i+1])<<8)
+	}
+	return samples
+}
+
+func bytesOf(samples []int16) []byte {
+	out := make([]byte, 2*len(samples))
+	for i, s := range samples {
+		out[2*i], out[2*i+1] = byte(s), byte(s>>8)
+	}
+	return out
 }

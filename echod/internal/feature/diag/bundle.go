@@ -95,6 +95,7 @@ func settingsSummary(c config.Config) string {
 	add("radio: source=%q own=%d favorites wired=%t", c.Home.RadioSource, len(c.Home.Radio.Own), c.Home.Radio.Configured())
 	add("security: ssh=%t camera_web=%t screen_web=%t talk_back=%t settings_lock=%t", c.Security.SSH, c.Security.Camera, c.Security.Screen, c.Security.TalkBack, c.Security.LockPIN != "")
 	add("updates: channel=%q", c.Update.Channel)
+	add("voice assistant: mode=%q", c.Brain.Mode)
 	return strings.Join(out, "\n")
 }
 

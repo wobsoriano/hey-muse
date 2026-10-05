@@ -1,10 +1,11 @@
 package config
 
 // Brain is where a turn's speech and answer come from when they do not come from Home Assistant: the
-// direct pipeline (feature/voice/direct.go). Speech to text and text to speech are Wyoming servers
-// (faster-whisper and Piper, as Home Assistant itself uses), and the answer is a chat model behind an
-// OpenAI-style endpoint (llama.cpp's server, Ollama, and so on), which acts through the device's own
-// abilities as tools. Empty Mode is Home Assistant's Assist pipeline, as always.
+// direct pipeline (feature/voice/direct.go), or Meta's Muse (feature/voice/muse.go). For the direct
+// pipeline, speech to text and text to speech are Wyoming servers (faster-whisper and Piper, as Home
+// Assistant itself uses), and the answer is a chat model behind an OpenAI-style endpoint (llama.cpp's
+// server, Ollama, and so on), which acts through the device's own abilities as tools. Empty Mode is
+// Home Assistant's Assist pipeline, as always.
 type Brain struct {
 	Mode BrainMode `json:"mode,omitempty"`
 
@@ -30,6 +31,30 @@ type Brain struct {
 	// Prompt is added to the device's own instructions to the model: a name, a tone, what the
 	// household wants it to know.
 	Prompt string `json:"prompt,omitempty"`
+
+	// Muse is what answering through Muse needs. The pairing itself is not here: it lives in the Muse
+	// feature's own file, which is never shown and never bundled.
+	Muse Muse `json:"muse"`
+}
+
+// Muse is Meta's Muse answering the turn, and an OpenAI-style speech endpoint saying its answer:
+// Muse returns text and the device has no voice of its own for it.
+type Muse struct {
+	// SDKToken is the developer's token from gadgets.muse.ai, which pairing hands to the Muse app and
+	// the device reports to Muse once. It is a secret, never shown again once saved.
+	SDKToken string `json:"sdk_token,omitempty"`
+	Speech   Speech `json:"speech"`
+}
+
+// Speech is the endpoint that voices Muse's answers (lib/speech). Empty Base, Model and Voice are
+// the library's defaults. Key is a secret, never shown again once saved.
+type Speech struct {
+	Base  string `json:"base,omitempty"`
+	Model string `json:"model,omitempty"`
+	Voice string `json:"voice,omitempty"`
+	// Style is how to say it, in words, for a model that takes instructions.
+	Style string `json:"style,omitempty"`
+	Key   string `json:"key,omitempty"`
 }
 
 type BrainMode string
@@ -37,6 +62,7 @@ type BrainMode string
 const (
 	BrainHomeAssistant BrainMode = ""
 	BrainDirect        BrainMode = "direct"
+	BrainMuse          BrainMode = "muse"
 )
 
 // Direct is whether turns go to the direct pipeline, and it is set up enough to run one.
@@ -44,15 +70,21 @@ func (b Brain) Direct() bool {
 	return b.Mode == BrainDirect && b.STT != "" && b.TTS != "" && b.LLM != ""
 }
 
+// Standalone is whether the device answers turns itself, with no Home Assistant pipeline needed: the
+// direct pipeline when it is set up, or Muse.
+func (b Brain) Standalone() bool {
+	return b.Direct() || b.Mode == BrainMuse
+}
+
 type BrainWriter struct{ st *Store }
 
-// Set replaces everything but the key, which only SetKey changes: a form that shows the key as
-// "set" and posts nothing for it must not clear it.
+// Set replaces everything but the secrets, which only their own setters change: a form that shows a
+// key as "set" and posts nothing for it must not clear it.
 func (w BrainWriter) Set(b Brain) error {
 	return w.st.Update(func(c *Config) {
-		key := c.Brain.Key
+		key, sdk, speech := c.Brain.Key, c.Brain.Muse.SDKToken, c.Brain.Muse.Speech.Key
 		c.Brain = b
-		c.Brain.Key = key
+		c.Brain.Key, c.Brain.Muse.SDKToken, c.Brain.Muse.Speech.Key = key, sdk, speech
 	})
 }
 
@@ -64,4 +96,17 @@ func (w BrainWriter) SetVoice(voice string) error {
 
 func (w BrainWriter) SetKey(key string) error {
 	return w.st.Update(func(c *Config) { c.Brain.Key = key })
+}
+
+func (w BrainWriter) SetSDKToken(token string) error {
+	return w.st.Update(func(c *Config) { c.Brain.Muse.SDKToken = token })
+}
+
+func (w BrainWriter) SetSpeechKey(key string) error {
+	return w.st.Update(func(c *Config) { c.Brain.Muse.Speech.Key = key })
+}
+
+// SetSpeechVoice is SetVoice for Muse's speech: the voice alone, from the screen.
+func (w BrainWriter) SetSpeechVoice(voice string) error {
+	return w.st.Update(func(c *Config) { c.Brain.Muse.Speech.Voice = voice })
 }

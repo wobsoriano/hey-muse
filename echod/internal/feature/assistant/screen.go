@@ -3,6 +3,7 @@ package assistant
 import (
 	"errors"
 
+	gadget "github.com/HuskerMinion/techo5/echod/internal/feature/muse"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/voice"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/llm"
 )
@@ -11,8 +12,12 @@ import (
 // could. Set by the display on a device that has a screen; without one the tool is not offered.
 var screen func(page string) bool
 
-// SetScreen is how the display offers its pages.
-func SetScreen(fn func(page string) bool) { screen = fn }
+// SetScreen is how the display offers its pages. Muse is told again, since it was told before there
+// was a screen.
+func SetScreen(fn func(page string) bool) {
+	screen = fn
+	gadget.Get().SetCommands(commandsForMuse(tools()))
+}
 
 func screenTools() []tool {
 	if screen == nil {

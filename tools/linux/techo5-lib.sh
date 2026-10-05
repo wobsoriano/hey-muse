@@ -427,7 +427,11 @@ t5_bt_up() {
 		fi
 	fi
 	bd=$(command -v bluetoothd || echo /usr/lib/bluetooth/bluetoothd)
-	[ -x "$bd" ] && "$bd" -n >> "$logdir/bluetoothd.log" 2>&1 &
+	# Without the battery plugin: it reads a connecting phone's battery level, an iPhone answers that
+	# only over a bonded link, bluetoothd then asks it to bond and drops it when that is refused, which
+	# is in the middle of Muse setup (lib/bluez gatt.go). Seen in btmon on a Show 5 2nd gen; Meta's own
+	# installer turns it off for the same reason.
+	[ -x "$bd" ] && "$bd" -n --noplugin=battery >> "$logdir/bluetoothd.log" 2>&1 &
 	# Seen on the bench: after the first power-on the controller answers commands but never
 	# reports an inquiry result or an advertisement until it has been powered off and on once.
 	n=0; while [ $n -lt 10 ] && ! timeout 3 btmgmt info 2>/dev/null | grep -q "current settings: powered"; do sleep 1; n=$((n+1)); done

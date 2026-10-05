@@ -37,15 +37,19 @@ const (
 	AudioSink = "0000110b-0000-1000-8000-00805f9b34fb"
 )
 
-// SystemBus is where bluetoothd is. Set from the environment if it is somewhere else.
-func SystemBus() (*dbus.Conn, error) {
+// SystemBus is where bluetoothd is. Set from the environment if it is somewhere else. Options, which
+// the GATT peripheral needs to see its messages in order, always get a connection of their own.
+func SystemBus(opts ...dbus.ConnOption) (*dbus.Conn, error) {
 	if addr := os.Getenv("DBUS_SYSTEM_BUS_ADDRESS"); addr != "" {
-		return dbus.Connect(addr)
+		return dbus.Connect(addr, opts...)
 	}
 	for _, p := range []string{"/run/dbus/system_bus_socket", "/var/run/dbus/system_bus_socket"} {
 		if _, err := os.Stat(p); err == nil {
-			return dbus.Connect("unix:path=" + p)
+			return dbus.Connect("unix:path="+p, opts...)
 		}
+	}
+	if len(opts) > 0 {
+		return dbus.ConnectSystemBus(opts...)
 	}
 	return dbus.SystemBus()
 }

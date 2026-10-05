@@ -24,13 +24,6 @@ func TestWordsSaysADuration(t *testing.T) {
 	}
 }
 
-// What is spoken is plain: no markdown, no typographic punctuation for the voice to trip on.
-func TestSpokenIsPlain(t *testing.T) {
-	if got := spoken("**It’s** eight thirty‑two."); got != "It's eight thirty-two." {
-		t.Errorf("spoken = %q", got)
-	}
-}
-
 // A day by name lands on the next one to come, today included.
 func TestDayOf(t *testing.T) {
 	now := time.Date(2026, 9, 29, 10, 0, 0, 0, time.Local) // a Tuesday

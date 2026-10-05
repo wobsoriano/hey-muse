@@ -2,6 +2,7 @@ package setup
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"log/slog"
@@ -15,6 +16,7 @@ import (
 	"github.com/HuskerMinion/techo5/echod/internal/feature/diag"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/home"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/media"
+	gadget "github.com/HuskerMinion/techo5/echod/internal/feature/muse"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/timezone"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/web"
 	"github.com/HuskerMinion/techo5/echod/internal/layout"
@@ -150,12 +152,18 @@ func (f *Feature) wait(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/setup", http.StatusSeeOther)
 }
 
-// state is what the waiting page polls: whether the press has happened yet.
+// state is what the waiting page polls: whether the press has happened yet. A browser that is in
+// also hears where the device stands with Muse, for the pairing panel to follow along.
 func (f *Feature) state(w http.ResponseWriter, r *http.Request) {
 	_, in := f.session(r)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
-	fmt.Fprintf(w, `{"in":%t,"waiting":%t}`+"\n", in, f.Waiting())
+	st := map[string]any{"in": in, "waiting": f.Waiting()}
+	if in {
+		s := gadget.Get().Status()
+		st["muse"], st["muse_phase"] = museWords(s), s.Phase.String()
+	}
+	_ = json.NewEncoder(w).Encode(st)
 }
 
 // save takes the forms. Every write names the setting it changes; nothing here touches keys, runs a
@@ -221,6 +229,8 @@ func (f *Feature) save(w http.ResponseWriter, r *http.Request) {
 		problem = saveUpdates(what, r.PostFormValue("auto") == "yes")
 	case "brain":
 		problem = saveBrain(r)
+	case "muse-pair", "muse-cancel", "muse-unpair":
+		problem = saveMusePairing(what)
 	case "music":
 		problem = saveMusic(r)
 	case "streaming":
@@ -334,6 +344,7 @@ func (f *Feature) settingsPage(ctx context.Context, w http.ResponseWriter, token
 		streamingSection(w, token)
 		fmt.Fprint(w, `<h3>Voice</h3>`)
 		brainSection(w, token)
+		musePairingSection(w, token)
 		listeningSection(w, token)
 		houseSection(w, token)
 	case "alarms":

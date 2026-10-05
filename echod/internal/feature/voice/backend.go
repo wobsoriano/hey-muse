@@ -7,9 +7,9 @@ import (
 )
 
 // backend is what a turn runs against: Home Assistant's Assist pipeline over the ESPHome connection,
-// or the device's own direct pipeline (direct.go). Either reports back through the conversation's
-// events - heard, reply text, reply audio, run end, error - so everything else about a turn, the
-// listening, the ducking, the ring and the screen, is the same whichever answers it.
+// the device's own direct pipeline (direct.go), or Muse (muse.go). Each reports back through the
+// conversation's events - heard, reply text, reply audio, run end, error - so everything else about
+// a turn, the listening, the ducking, the ring and the screen, is the same whichever answers it.
 //
 // Its methods are called in order from the conversation's send queue, one at a time.
 type backend interface {
@@ -38,10 +38,14 @@ func (h ha) Stop() error               { return h.vs.StopTurn() }
 func (h ha) Name() string              { return "home assistant" }
 
 // backendFor is which one a new turn runs against: the direct pipeline when it is chosen and set up,
-// Home Assistant otherwise.
+// Muse when it is chosen, Home Assistant otherwise.
 func (c *conversation) backendFor() backend {
-	if config.Get().Brain.Direct() {
+	b := config.Get().Brain
+	switch {
+	case b.Direct():
 		return c.direct
+	case b.Mode == config.BrainMuse:
+		return c.muse
 	}
 	return c.ha
 }

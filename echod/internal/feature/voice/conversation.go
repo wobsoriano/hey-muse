@@ -16,6 +16,7 @@ import (
 	"github.com/HuskerMinion/techo5/echod/internal/feature/feedback"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/light"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/media"
+	gadget "github.com/HuskerMinion/techo5/echod/internal/feature/muse"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/mute"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/recording"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/ring"
@@ -113,10 +114,11 @@ type event struct {
 type conversation struct {
 	vs *esphome.VoiceSatellite
 
-	// ha and direct are the two backends a turn can run against, and be the one the open turn is
+	// ha, direct and muse are the backends a turn can run against, and be the one the open turn is
 	// running against (backend.go). be is chosen as a turn opens and is only the loop's to change.
 	ha     ha
 	direct *direct
+	muse   *viaMuse
 	be     backend
 
 	source  *mic.Source
@@ -217,6 +219,7 @@ func newConversation(vs *esphome.VoiceSatellite) *conversation {
 	}
 	c.ha = ha{vs: vs}
 	c.direct = newDirect(c.post)
+	c.muse = newViaMuse(gadget.Get(), speakMuse, c.post)
 	c.be = c.ha
 
 	vs.OnPipelineEvent = c.pipeline
@@ -961,10 +964,10 @@ func (c *conversation) stream(ctx context.Context, be backend, slot int, followU
 	// television's words to act on. There it is logged only, and the follow-up's own limit ends it.
 	// The same when the device has been told to leave it to Home Assistant.
 	//
-	// The direct pipeline has nobody else to decide, so there it acts every time, follow-ups too:
+	// Any other backend has nobody else to decide, so there it acts every time, follow-ups too:
 	// without it a follow-up would run to its limit and then be dropped as nothing said.
-	_, isDirect := be.(*direct)
-	acts := isDirect || (!followUp && !config.Get().Microphone.PipelineEnds)
+	_, fromHA := be.(ha)
+	acts := !fromHA || (!followUp && !config.Get().Microphone.PipelineEnds)
 	ep := endpoint.New(endpoint.Default)
 	var sent int
 	var endpointAt float64
@@ -1109,7 +1112,8 @@ func activeWakeWords(models []wake.Model, slots int) []string {
 
 // pageAsked is whether what was heard puts something on the screen that the answer should be left on
 // rather than covered by listening again: the clock asked back ("go home"), a camera, or - where the
-// screen opens the forecast on the words, which it does for Home Assistant's answers - the weather.
+// screen opens the forecast on the words, which it does for Home Assistant's and Muse's answers, since
+// neither puts it up itself - the weather.
 func pageAsked(heard string) bool {
 	lang := config.Get().Screen.Language
 	if triggers.AboutGoingHome(heard, lang) || triggers.AboutCamera(heard, lang) {
