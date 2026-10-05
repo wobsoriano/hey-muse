@@ -530,18 +530,26 @@ func (r *renderer) draw(s scene) {
 		return
 	}
 
+	// With the Muse character a turn is the character alone, in the middle of the screen. It listens,
+	// thinks and talks as the turn does, and the answer is for the ear: a long one does not fit beside
+	// it, and what was heard is Muse's caption of the recording, which is not what it answers from.
+	if r.turnAvatar(s) {
+		if s.showVolume {
+			r.volumeBar(s)
+		}
+		return
+	}
+
 	var behind *image.RGBA // the photo behind the idle page, when it has one
-	// A turn's words start at the margin, or beside the character when it has one.
-	left := r.turnAvatar(s)
 	switch s.phase {
 	case "listening":
-		r.status(s, "Listening…", left, true)
+		r.status(s, "Listening…", true)
 	case "thinking":
-		r.status(s, "Thinking…", left, true)
-		r.words(s.heard, "", left, 200)
+		r.status(s, "Thinking…", true)
+		r.words(s.heard, "", 200)
 	case "replying", "lingering":
 		r.cornerClock(s)
-		r.words(s.heard, s.reply, left, 70)
+		r.words(s.heard, s.reply, 70)
 	default:
 		if s.sunrise > 0 {
 			// The light before an alarm takes the whole screen: the panel is the lamp in the room, and
@@ -802,33 +810,32 @@ func (r *renderer) cornerClockDated(s scene) {
 	r.text(r.tiny, d, r.w-r.margin-r.width(r.tiny, d), r.margin+r.s(54), dim)
 }
 
-// status is a phase title with an indicator that breathes while the device waits, from left to the
-// right margin.
-func (r *renderer) status(s scene, title string, left int, breathe bool) {
+// status is a phase title with an indicator that breathes while the device waits.
+func (r *renderer) status(s scene, title string, breathe bool) {
 	r.cornerClock(s)
-	r.text(r.title, title, left, r.s(120), amber)
+	r.text(r.title, title, r.margin, r.s(120), amber)
 	if breathe {
 		// A bar under the title, its length rising and falling with a period of 1.6 s.
 		t := float64(s.now.Sub(s.since).Milliseconds()) / 1600
 		f := 0.55 + 0.45*math.Sin(2*math.Pi*t)
-		full := r.w - r.margin - left
-		draw.Draw(r.dst, image.Rect(left, r.s(140), left+full, r.s(146)), image.NewUniform(ember), image.Point{}, draw.Src)
-		draw.Draw(r.dst, image.Rect(left, r.s(140), left+int(float64(full)*f), r.s(146)), image.NewUniform(amber), image.Point{}, draw.Src)
+		full := r.w - 2*r.margin
+		draw.Draw(r.dst, image.Rect(r.margin, r.s(140), r.margin+full, r.s(146)), image.NewUniform(ember), image.Point{}, draw.Src)
+		draw.Draw(r.dst, image.Rect(r.margin, r.s(140), r.margin+int(float64(full)*f), r.s(146)), image.NewUniform(amber), image.Point{}, draw.Src)
 	}
 }
 
-// words lays out what was heard, dimmed, and the reply beneath it, from left to the right margin,
-// starting at top and stopping at the footer. A long reply is shrunk one step before being cut.
-func (r *renderer) words(heard, reply string, left, top int) {
+// words lays out what was heard, dimmed, and the reply beneath it, starting at top and stopping at
+// the footer. A long reply is shrunk one step before being cut.
+func (r *renderer) words(heard, reply string, top int) {
 	y := top
-	maxW := r.w - r.margin - left
+	maxW := r.w - 2*r.margin
 	bottom := r.h - 70
 	if heard != "" {
 		for _, line := range r.wrap(r.small, "“"+heard+"”", maxW) {
 			if y+40 > bottom {
 				break
 			}
-			r.text(r.small, line, left, y+30, dim)
+			r.text(r.small, line, r.margin, y+30, dim)
 			y += 42
 		}
 		y += 18
@@ -845,11 +852,11 @@ func (r *renderer) words(heard, reply string, left, top int) {
 	for i, line := range lines {
 		if y+lineH > bottom {
 			if i > 0 {
-				r.text(face, "…", left, y, cream)
+				r.text(face, "…", r.margin, y, cream)
 			}
 			break
 		}
-		r.text(face, line, left, y+lineH-12, cream)
+		r.text(face, line, r.margin, y+lineH-12, cream)
 		y += lineH
 	}
 }

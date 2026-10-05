@@ -70,10 +70,11 @@ func avatarScenes(now time.Time) map[string]scene {
 	}
 }
 
-// The words of a turn go beside the character and never over it, on both panels and however long
-// the answer is. AVATAR_PREVIEW names a folder to write the pages to, to look at without a device,
-// and AVATAR_SPRITES a set made by tools/muse-avatar to draw them with in place of the stand-in.
-func TestTheAvatarTurnKeepsTheWordsOffTheCharacter(t *testing.T) {
+// A Muse turn is the character alone: centered, as large as fits in whole pixels, nothing drawn over
+// it, and the same picture whatever was heard or answered. AVATAR_PREVIEW names a folder to write the
+// pages to, to look at without a device, and AVATAR_SPRITES a set made by tools/muse-avatar to draw
+// them with in place of the stand-in.
+func TestTheAvatarTurnIsTheCharacterAlone(t *testing.T) {
 	standIn := standInAvatar(t)
 	shown := standIn
 	if dir := os.Getenv("AVATAR_SPRITES"); dir != "" {
@@ -90,21 +91,24 @@ func TestTheAvatarTurnKeepsTheWordsOffTheCharacter(t *testing.T) {
 		wide, high int
 		scale      int
 	}{
-		{"", showWide, showHigh, 5},
-		{"-show8", show8Wide, show8High, 6},
+		{"", showWide, showHigh, 6},
+		{"-show8", show8Wide, show8High, 11},
 	} {
 		for name, s := range avatarScenes(now) {
 			s.avatar = standIn
 			img := image.NewRGBA(image.Rect(0, 0, panel.wide, panel.high))
 			r := newRenderer(img)
 			r.draw(s)
-			at, scale, left := r.avatarPlace(standIn)
+			at, scale := r.avatarPlace(standIn)
 			if scale != panel.scale {
 				t.Fatalf("%s%s: the character is drawn at %d pixels to one, want %d", name, panel.name, scale, panel.scale)
 			}
 			box := image.Rectangle{Min: at, Max: at.Add(image.Pt(64*scale, 64*scale))}
 			if !box.In(img.Rect) {
 				t.Fatalf("%s%s: the character is at %v, off the screen", name, panel.name, box)
+			}
+			if box.Min.X != panel.wide-box.Max.X || box.Min.Y != panel.high-box.Max.Y {
+				t.Fatalf("%s%s: the character is at %v, not in the middle", name, panel.name, box)
 			}
 			want := color.RGBA{standInColor.R, standInColor.G, standInColor.B, 255}
 			for y := box.Min.Y; y < box.Max.Y; y++ {
@@ -114,12 +118,12 @@ func TestTheAvatarTurnKeepsTheWordsOffTheCharacter(t *testing.T) {
 					}
 				}
 			}
-			for y := 0; y < panel.high; y++ {
-				for x := box.Max.X; x < left; x++ {
-					if got := img.RGBAAt(x, y); got == want {
-						t.Fatalf("%s%s: the character runs into the words' column at %d,%d", name, panel.name, x, y)
-					}
-				}
+			silent := s
+			silent.heard, silent.reply = "", ""
+			bare := image.NewRGBA(img.Rect)
+			newRenderer(bare).draw(silent)
+			if string(bare.Pix) != string(img.Pix) {
+				t.Fatalf("%s%s: the words of the turn are on the screen with the character", name, panel.name)
 			}
 			if preview == "" {
 				continue
@@ -132,10 +136,6 @@ func TestTheAvatarTurnKeepsTheWordsOffTheCharacter(t *testing.T) {
 			r.draw(early)
 			r.draw(s)
 			writeAvatarFile(t, filepath.Join(preview, "avatar-"+name+panel.name+".png"), func(f *os.File) error { return png.Encode(f, r.dst) })
-			s.avatar = nil
-			r = newRenderer(image.NewRGBA(img.Rect))
-			r.draw(s)
-			writeAvatarFile(t, filepath.Join(preview, "plain-"+name+panel.name+".png"), func(f *os.File) error { return png.Encode(f, r.dst) })
 		}
 	}
 }

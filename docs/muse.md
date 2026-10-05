@@ -121,8 +121,10 @@ is not offered.
 
 ## The avatar
 
-When Muse answers, a Show can draw Muse's character beside the words of a turn. The character
-listens, thinks and talks as the turn does. The Spot and the Dot do not draw it.
+When Muse answers, a Show can draw Muse's character in the middle of the screen for a turn. The
+character listens, thinks and talks as the turn does. With the character, a turn shows no words: the
+answer is spoken, and what Muse heard and answered is in your Muse chat. Without it, a turn shows the
+words as it does for any other assistant. The Spot and the Dot do not draw it.
 
 The character is Meta's. Meta says its Apache license does not cover the character, so neither the
 character nor the code that draws it is in this repository or in any release. You make the pictures

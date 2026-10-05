@@ -1,7 +1,8 @@
 # The Muse avatar
 
-When Muse is what answers (`brain.mode` is `muse`), an Echo Show can draw Muse's character beside
-the words of a turn: listening, thinking and talking as the turn does. The character is Meta's.
+When Muse is what answers (`brain.mode` is `muse`), an Echo Show can draw Muse's character in
+the middle of the screen for a turn: listening, thinking and talking as the turn does, with no words
+beside it. The character is Meta's.
 Meta's SDK says its Apache license does not cover it, so neither the character nor the code that
 draws it is in this repository or in any image built from it. `make_sprites.py` makes the pictures
 from your own copy of the SDK, for your own device.
