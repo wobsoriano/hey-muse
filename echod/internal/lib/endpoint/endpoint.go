@@ -35,6 +35,14 @@ type Settings struct {
 // Default is what the recordings of real turns were measured at.
 var Default = Settings{On: 0.5, Off: 0.3, Quiet: 6, Speech: 3}
 
+// Patient is for a turn nobody else will end: an answerer that is sent the utterance whole, with no
+// detector of its own behind this one to catch what was cut short. Default ended a sentence that trailed
+// off before its last word ("do I have anything on my" for "...on my calendar"), because a word under
+// half the loudest one was not the speaker and six tenths of a second without one was the end. Here a
+// softer word still counts and the pause has to last a second. Not measured on recordings the way
+// Default was: chosen from the turns it cut.
+var Patient = Settings{On: 0.3, Off: 0.2, Quiet: 10, Speech: 3}
+
 // Detector follows one turn's audio. Feed it what is sent, in any size of frame.
 type Detector struct {
 	s Settings
@@ -92,4 +100,45 @@ func (d *Detector) EndedAt() int {
 		return 0
 	}
 	return (d.ended - d.s.Quiet) * Window
+}
+
+// Trim cuts a whole utterance down to where the speaker is in it, with a little room either side: what
+// came before the first word and after the last is the room, and a recognizer handed two words inside
+// four seconds of room makes a sentence out of all of it. Unlike a Detector it has the whole turn to
+// measure against, so the loudest window is the speaker's and not whatever came first. An utterance
+// with nothing that loud relative to itself comes back as it was.
+func Trim(samples []int16) []int16 {
+	const margin = 3 // windows kept either side
+	n := len(samples) / Window
+	if n < 2*margin {
+		return samples
+	}
+	levels := make([]float64, n)
+	var peak float64
+	for w := range levels {
+		var sum float64
+		for _, v := range samples[w*Window : (w+1)*Window] {
+			sum += float64(v) * float64(v)
+		}
+		levels[w] = math.Sqrt(sum / Window)
+		peak = max(peak, levels[w])
+	}
+	first, last := -1, -1
+	for w, l := range levels {
+		if l >= Patient.On*peak {
+			if first < 0 {
+				first = w
+			}
+			last = w
+		}
+	}
+	if first < 0 {
+		return samples
+	}
+	from := max(first-margin, 0) * Window
+	to := min(last+1+margin, n) * Window
+	if to == n*Window {
+		to = len(samples)
+	}
+	return samples[from:to]
 }

@@ -937,6 +937,10 @@ func (c *conversation) stopStreaming() {
 }
 
 // stream sends microphone frames until it is told to stop.
+// followUpSettle is how long after its own answer the device waits before it sends the microphone in a
+// follow-up nobody chimes for: the room's echo of the last word, which nobody answers inside of.
+const followUpSettle = 250 * time.Millisecond
+
 func (c *conversation) stream(ctx context.Context, be backend, slot int, followUp bool, id string) {
 	frames, unlisten := c.source.Listen("turn")
 	defer unlisten()
@@ -968,7 +972,11 @@ func (c *conversation) stream(ctx context.Context, be backend, slot int, followU
 	// without it a follow-up would run to its limit and then be dropped as nothing said.
 	_, fromHA := be.(ha)
 	acts := !fromHA || (!followUp && !config.Get().Microphone.PipelineEnds)
-	ep := endpoint.New(endpoint.Default)
+	settings := endpoint.Default
+	if !fromHA {
+		settings = endpoint.Patient
+	}
+	ep := endpoint.New(settings)
 	var sent int
 	var endpointAt float64
 	see := func(frame []int16) {
@@ -1001,8 +1009,14 @@ func (c *conversation) stream(ctx context.Context, be backend, slot int, followU
 	// nothing is sent while it is sounding. What the speaker still has queued says when that is, and
 	// hardwareTail is what the driver holds after the queue runs out.
 	var sounding time.Time
-	if wakeword.Tones(slot, followUp) {
+	switch {
+	case wakeword.Tones(slot, followUp):
 		sounding = time.Now().Add(wakeword.ChimeLength(slot, followUp) + speaker.HardwareTail)
+	case followUp && !fromHA:
+		// A follow-up opens as the answer that asked for it ends, and the last of that answer is still
+		// leaving the driver and the room. Sent whole to an answerer, it is the loudest thing in the
+		// turn's first second.
+		sounding = time.Now().Add(speaker.HardwareTail + followUpSettle)
 	}
 	var held int
 

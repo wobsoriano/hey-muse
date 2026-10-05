@@ -162,3 +162,38 @@ func writeWAV(path string, pcm []int16) error {
 	}
 	return os.WriteFile(path, b, 0o600)
 }
+
+// A sentence that trails off: loud words, then softer ones with a short pause among them. Default
+// takes the pause for the end; Patient waits for the rest.
+func TestPatientWaitsThroughASentenceThatTrailsOff(t *testing.T) {
+	sentence := [][]int16{tone(5, 3000), tone(4, 60), tone(3, 1200), tone(3, 60), tone(4, 1200)}
+	if !feed(New(Default), sentence...) {
+		t.Fatal("Default was expected to end this sentence early; the case no longer shows the difference")
+	}
+	d := New(Patient)
+	if feed(d, sentence...) {
+		t.Fatalf("Patient ended the turn mid-sentence, at window %d", d.EndedAt()/Window)
+	}
+	if !feed(d, tone(12, 60)) {
+		t.Fatal("Patient never ended the turn after a second of quiet")
+	}
+}
+
+func TestTrimKeepsTheSpeakerAndALittleRoom(t *testing.T) {
+	turn := append(append(tone(25, 80), tone(8, 3000)...), tone(12, 80)...)
+	got := Trim(turn)
+	if want := (3 + 8 + 3) * Window; len(got) != want {
+		t.Fatalf("trimmed to %d windows, want %d", len(got)/Window, want/Window)
+	}
+	if &got[0] != &turn[22*Window] {
+		t.Fatal("the trimmed turn does not start three windows before the first word")
+	}
+}
+
+func TestTrimLeavesAShortOrEmptyTurnAlone(t *testing.T) {
+	for _, turn := range [][]int16{nil, tone(4, 3000), make([]int16, 20*Window)} {
+		if got := Trim(turn); len(got) != len(turn) {
+			t.Fatalf("a turn of %d samples was trimmed to %d", len(turn), len(got))
+		}
+	}
+}

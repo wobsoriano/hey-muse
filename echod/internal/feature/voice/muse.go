@@ -11,6 +11,7 @@ import (
 	"github.com/HuskerMinion/techo5/echod/internal/config"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/media"
 	"github.com/HuskerMinion/techo5/echod/internal/hardware/mic"
+	"github.com/HuskerMinion/techo5/echod/internal/lib/endpoint"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/muse"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/safe"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/speech"
@@ -91,7 +92,7 @@ func (m *viaMuse) answer(ctx context.Context, pcm []byte) {
 	}
 
 	start := time.Now()
-	wav := wavFile(media.Normalize(samplesOf(pcm)))
+	wav := wavFile(media.Normalize(endpoint.Trim(samplesOf(pcm))))
 	var heardAt, repliedAt, firstAudioAt time.Duration
 	var spoken bool
 	var speechErr error
