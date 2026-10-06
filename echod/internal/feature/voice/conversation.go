@@ -26,6 +26,7 @@ import (
 	"github.com/HuskerMinion/techo5/echod/internal/hardware/speaker"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/endpoint"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/safe"
+	"github.com/HuskerMinion/techo5/echod/internal/lib/speech"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/triggers"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/wake"
 )
@@ -577,7 +578,9 @@ func (c *conversation) start(n nextTurn) {
 	if !c.be.Ready() {
 		slog.Warn("no voice pipeline ready, ignoring wake", "slot", slot+1, "backend", c.be.Name())
 		wakeword.Chime(slot, n.followUp)
-		c.trouble()
+		if e, ok := c.be.(excuser); !ok || !c.excuse(e.Excuse()) {
+			c.trouble()
+		}
 		return
 	}
 
@@ -816,6 +819,44 @@ func (c *conversation) disarm() {
 // so ending the turn that failed cannot take the indication away with it.
 func (c *conversation) trouble() {
 	feedback.Failure()
+}
+
+// excusing is set while an excuse is being said, so that asking again does not stack another on it.
+var excusing atomic.Bool
+
+// excuse says why a turn could not start, in the device's own voice, which needs no connection, and
+// reports whether it will: not in quiet hours, where a failure waits for morning as its tone does, and
+// not on an image with no voice of its own. Then the tone is what there is.
+func (c *conversation) excuse(text string) bool {
+	voice := speech.Installed()
+	if text == "" || config.Quiet() || !voice.Available() {
+		return false
+	}
+	if !excusing.CompareAndSwap(false, true) {
+		return true
+	}
+	safe.Go("excuse", func() {
+		defer excusing.Store(false)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		var samples []int16
+		err := voice.Speak(ctx, text, func(s []int16) error {
+			samples = append(samples, s...)
+			return nil
+		})
+		if err != nil || len(samples) == 0 {
+			slog.Warn("saying why the turn did not start failed", "err", err)
+			c.trouble()
+			return
+		}
+		claim := c.sound.ClaimSpeech("excuse", func(context.Context, *speaker.Player) error {
+			c.speaker.PlayVoice(samples)
+			c.speaker.PlayVoice(make([]int16, speaker.VoiceRate*media.Tail/1000))
+			return nil
+		})
+		<-claim.Done()
+	})
+	return true
 }
 
 // phraseFor is what Home Assistant expects a turn to report for one of its wake word slots: the

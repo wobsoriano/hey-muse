@@ -406,6 +406,8 @@ func (c *Client) serve(ctx context.Context, v vm, st State) (outcome, time.Durat
 		log:        c.log,
 		t:          c.t,
 		registered: func() { c.setState(ConnState{Phase: Online}) },
+		knockEvery: v.knockEvery,
+		knocks:     v.knocks,
 	})
 	c.log.Info("muse: connecting", "vm", vmID)
 	c.mu.Lock()

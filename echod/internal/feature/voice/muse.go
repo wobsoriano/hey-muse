@@ -27,6 +27,8 @@ import (
 // museLink is the connection a turn asks through: feature/muse's Feature, or a test's stand-in.
 type museLink interface {
 	Ready() bool
+	// Paired is whether the Muse app has paired the device, connected just now or not.
+	Paired() bool
 	Ask(ctx context.Context, wav []byte, on func(muse.ReplyEvent)) (muse.Reply, error)
 }
 
@@ -53,6 +55,15 @@ func newViaMuse(link museLink, voice func() speech.Voice, speak speakFunc, post 
 func (m *viaMuse) Name() string { return "muse" }
 
 func (m *viaMuse) Ready() bool { return config.Get().Brain.Mode == config.BrainMuse && m.link.Ready() }
+
+// Excuse is why Muse cannot take a turn, for the device to say: a tone alone does not tell somebody
+// who was heard whether to say it again, wait, or go and pair the device.
+func (m *viaMuse) Excuse() string {
+	if !m.link.Paired() {
+		return "This device is not paired with Muse yet."
+	}
+	return "I can't reach Muse right now."
+}
 
 // End hands the utterance over to be answered, off the send queue as direct does: Muse takes
 // seconds to answer, and the next turn's start must not wait behind it.

@@ -216,6 +216,13 @@ func (f *Feature) Ready() bool {
 	return f.phase == Online
 }
 
+// Paired is whether the Muse app has paired the device, connected just now or not.
+func (f *Feature) Paired() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.st.Credentials != nil
+}
+
 // Ask says a voice note to Muse and waits for the answer; on hears it arrive (muse.Client.Ask).
 func (f *Feature) Ask(ctx context.Context, wav []byte, on func(muse.ReplyEvent)) (muse.Reply, error) {
 	f.mu.Lock()

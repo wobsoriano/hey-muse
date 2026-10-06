@@ -27,6 +27,9 @@ type backend interface {
 	Name() string
 }
 
+// excuser is a backend that can say why it is not ready, in words for the room.
+type excuser interface{ Excuse() string }
+
 // ha is Home Assistant's pipeline.
 type ha struct{ vs *esphome.VoiceSatellite }
 

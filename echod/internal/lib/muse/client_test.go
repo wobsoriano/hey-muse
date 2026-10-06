@@ -581,6 +581,29 @@ func TestRevokedPairingUnpairs(t *testing.T) {
 	}
 }
 
+// A VM that is not behind its front door yet is asked again with the same bearer, as often as the
+// API said, and the device is never reported offline for it: asked once and then left for a minute,
+// the real one stayed shut for half an hour.
+func TestAColdVMIsAskedAgainUntilItOpens(t *testing.T) {
+	h := start(t, func(h *harness, _ *State, _ *Config) {
+		h.fake.coldUpgrades, h.fake.knockEveryMs = 5, 100
+	})
+	_, seen := h.until(Online)
+	for _, s := range seen {
+		if s.Phase == Offline {
+			t.Fatalf("reported offline before the VM opened: %v", s.Err)
+		}
+	}
+	want := []string{"fetch Bearer access-0"}
+	for range 5 {
+		want = append(want, "upgrade Bearer vmtok-0 -> 403")
+	}
+	want = append(want, "upgrade Bearer vmtok-0 -> 0")
+	if events := h.fake.log(); !reflect.DeepEqual(events, want) {
+		t.Errorf("events = %q, want %q", events, want)
+	}
+}
+
 func TestUpgradeRefusalFetchesFreshCredentials(t *testing.T) {
 	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden} {
 		h := start(t, func(h *harness, _ *State, _ *Config) {

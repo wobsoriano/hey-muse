@@ -32,6 +32,10 @@ type fakeMuse struct {
 	refresh  string
 	rotation int
 	bearer   string
+	// coldUpgrades is how many upgrades the front door answers 403 before the VM is behind it, as
+	// the real one does after a quiet spell; knockEvery is the hint fetch_vms then carries.
+	coldUpgrades int
+	knockEveryMs int
 	// rejectUpgrades is how many WebSocket upgrades to refuse, and with what status.
 	rejectUpgrades int
 	rejectStatus   int
@@ -91,21 +95,30 @@ func (f *fakeMuse) handleFetch(w http.ResponseWriter, r *http.Request) {
 	f.events = append(f.events, "fetch "+r.Header.Get("Authorization"))
 	ok := r.Header.Get("Authorization") == "Bearer "+f.access && r.Header.Get("X-API-Version") == "1.0.0"
 	bearer := f.bearer
+	knockEveryMs := f.knockEveryMs
 	f.mu.Unlock()
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]any{"vm_list": []map[string]any{
+	answer := map[string]any{}
+	if knockEveryMs > 0 {
+		answer["retry_after_ms"], answer["max_retry_count"] = knockEveryMs, 80
+	}
+	answer["vm_list"] = []map[string]any{
 		{"vm_ws_url": "wss://ignored", "vm_auth_token": "skip", "vm_name": "other", "vm_id": "vm0"},
 		{"vm_ws_url": "wss://ignored", "vm_auth_token": bearer, "vm_name": "test", "vm_id": "vm 1", "default": true},
-	}})
+	}
+	_ = json.NewEncoder(w).Encode(answer)
 }
 
 func (f *fakeMuse) handleNoise(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
 	status := 0
 	switch {
+	case f.coldUpgrades > 0:
+		f.coldUpgrades--
+		status = http.StatusForbidden
 	case f.rejectUpgrades > 0:
 		f.rejectUpgrades--
 		status = f.rejectStatus

@@ -31,7 +31,19 @@ type vm struct {
 	name      string
 	authToken string
 	isDefault bool
+	// knockEvery and knocks are how to ask again when the VM's front door answers 403: the API says
+	// how long to wait and how many times, beside the list. Zero is not at all.
+	knockEvery time.Duration
+	knocks     int
 }
+
+// The most the API's word on asking again is taken at: a minute and a half of it, never faster than
+// ten times a second.
+const (
+	minKnockEvery = 100 * time.Millisecond
+	maxKnockEvery = 5 * time.Second
+	maxKnocks     = 180
+)
 
 type tokenPair struct {
 	AccessToken  string `json:"access_token"`
@@ -102,6 +114,8 @@ func (a *apiClient) fetchVMs(ctx context.Context, root, accessToken string) ([]v
 	var out struct {
 		ErrorTitle       any `json:"error_title"`
 		BackendErrorCode any `json:"backend_error_code"`
+		RetryAfterMs     int `json:"retry_after_ms"`
+		MaxRetryCount    int `json:"max_retry_count"`
 		VMList           []struct {
 			URL       string `json:"vm_url"`
 			WSURL     string `json:"vm_ws_url"`
@@ -117,10 +131,16 @@ func (a *apiClient) fetchVMs(ctx context.Context, root, accessToken string) ([]v
 	if truthy(out.ErrorTitle) || truthy(out.BackendErrorCode) {
 		return nil, status, fmt.Errorf("muse: VM fetch: %v %v", out.ErrorTitle, out.BackendErrorCode)
 	}
+	var every time.Duration
+	knocks := min(max(out.MaxRetryCount, 0), maxKnocks)
+	if knocks > 0 {
+		every = min(max(time.Duration(out.RetryAfterMs)*time.Millisecond, minKnockEvery), maxKnockEvery)
+	}
 	var vms []vm
 	for _, e := range out.VMList {
 		if (e.WSURL != "" || e.URL != "") && e.AuthToken != "" {
-			vms = append(vms, vm{id: e.ID, name: e.Name, authToken: e.AuthToken, isDefault: e.Default})
+			vms = append(vms, vm{id: e.ID, name: e.Name, authToken: e.AuthToken, isDefault: e.Default,
+				knockEvery: every, knocks: knocks})
 		}
 	}
 	return vms, status, nil

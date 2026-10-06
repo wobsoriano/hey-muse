@@ -283,6 +283,9 @@ type sessionParams struct {
 	log        *slog.Logger
 	t          timing
 	registered func() // called once Muse accepts the registration
+	// knockEvery and knocks are the API's word on asking a refusing front door again (vm).
+	knockEvery time.Duration
+	knocks     int
 }
 
 // session is one connection to a VM, from the WebSocket upgrade until it drops.
@@ -333,10 +336,28 @@ func (s *session) run(ctx context.Context) (outcome, error) {
 		TLSClientConfig:  s.p.tls,
 		HandshakeTimeout: s.p.t.handshake,
 	}
-	ws, resp, err := dialer.DialContext(ctx, s.p.url, http.Header{
+	header := http.Header{
 		"Authorization": {"Bearer " + s.p.bearer},
 		"User-Agent":    {s.p.userAgent},
-	})
+	}
+	ws, resp, err := dialer.DialContext(ctx, s.p.url, header)
+	// A VM nothing has reached for a while is not behind its front door yet, and the door says 403
+	// until it is: seen on a Show 5, some eleven seconds of asking twice a second after an hour
+	// connected. Asked once a minute it never opened, because whatever brings the VM there had let
+	// go again by then. The API says how often to ask and how many times, so that is what is done,
+	// with the bearer it gave.
+	knocked := 0
+	for err != nil && resp != nil && resp.StatusCode == http.StatusForbidden && knocked < s.p.knocks && ctx.Err() == nil {
+		select {
+		case <-ctx.Done():
+		case <-time.After(s.p.knockEvery):
+		}
+		knocked++
+		ws, resp, err = dialer.DialContext(ctx, s.p.url, header)
+	}
+	if knocked > 0 {
+		s.p.log.Info("muse: the VM's door was asked again", "times", knocked, "opened", err == nil)
+	}
 	if err != nil {
 		defer close(s.ended)
 		switch {

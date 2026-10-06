@@ -43,10 +43,12 @@ func (p *posted) kinds() []eventKind {
 
 // fakeLink is Muse answering however the test says.
 type fakeLink struct {
-	ask func(ctx context.Context, wav []byte, on func(muse.ReplyEvent)) (muse.Reply, error)
+	unpaired bool
+	ask      func(ctx context.Context, wav []byte, on func(muse.ReplyEvent)) (muse.Reply, error)
 }
 
-func (l fakeLink) Ready() bool { return true }
+func (l fakeLink) Ready() bool  { return true }
+func (l fakeLink) Paired() bool { return !l.unpaired }
 
 func (l fakeLink) Ask(ctx context.Context, wav []byte, on func(muse.ReplyEvent)) (muse.Reply, error) {
 	return l.ask(ctx, wav, on)
@@ -353,5 +355,19 @@ func TestMuseVoiceAndItsFallback(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// What Muse says when it cannot take a turn tells an unpaired device from an unreachable Muse: the
+// two want different things done about them.
+func TestMuseExcuseSaysWhich(t *testing.T) {
+	post := func(event) {}
+	reach := newViaMuse(fakeLink{}, museVoice, nil, post).Excuse()
+	pair := newViaMuse(fakeLink{unpaired: true}, museVoice, nil, post).Excuse()
+	if reach == "" || pair == "" || reach == pair {
+		t.Fatalf("excuses %q and %q", reach, pair)
+	}
+	if !strings.Contains(pair, "paired") {
+		t.Errorf("the unpaired excuse does not say so: %q", pair)
 	}
 }
