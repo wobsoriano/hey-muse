@@ -37,12 +37,12 @@ type vm struct {
 	knocks     int
 }
 
-// The most the API's word on asking again is taken at: a minute and a half of it, never faster than
-// ten times a second.
+// The most the API's word on asking again is taken at: eighty times, never faster than ten times a
+// second.
 const (
 	minKnockEvery = 100 * time.Millisecond
 	maxKnockEvery = 5 * time.Second
-	maxKnocks     = 180
+	maxKnocks     = 80
 )
 
 type tokenPair struct {

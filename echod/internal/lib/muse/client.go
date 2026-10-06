@@ -49,6 +49,8 @@ type Client struct {
 	reportAttempted bool
 	// rejected is whether the last round ended with the API rejecting the access token.
 	rejected bool
+	// knockedAt is when a refusing door was last asked again, which is not done again for a while.
+	knockedAt time.Time
 }
 
 type paramSpec struct {
@@ -338,6 +340,17 @@ func (c *Client) round(ctx context.Context, pace *backoff) (time.Duration, error
 	return pace.next(), err
 }
 
+// knocks is how many times this round may ask a refusing door again: as many as the API said, once,
+// and then not at all until knockRest has passed. A door that stays shut through a whole spell of
+// asking is shut for a reason asking does not change, and after that the rounds' own backoff is the
+// pace, one try each.
+func (c *Client) knocks(v vm) int {
+	if !c.knockedAt.IsZero() && time.Since(c.knockedAt) < c.t.knockRest {
+		return 0
+	}
+	return v.knocks
+}
+
 func (c *Client) refreshFailed(st State, err error, pace *backoff) (time.Duration, error) {
 	switch {
 	case errors.Is(err, ErrUnpaired):
@@ -407,13 +420,16 @@ func (c *Client) serve(ctx context.Context, v vm, st State) (outcome, time.Durat
 		t:          c.t,
 		registered: func() { c.setState(ConnState{Phase: Online}) },
 		knockEvery: v.knockEvery,
-		knocks:     v.knocks,
+		knocks:     c.knocks(v),
 	})
 	c.log.Info("muse: connecting", "vm", vmID)
 	c.mu.Lock()
 	c.session = s
 	c.mu.Unlock()
 	out, err := s.run(ctx)
+	if s.knocked > 0 {
+		c.knockedAt = time.Now()
+	}
 	c.mu.Lock()
 	c.session = nil
 	c.mu.Unlock()

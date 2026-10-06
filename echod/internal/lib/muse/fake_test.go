@@ -36,6 +36,7 @@ type fakeMuse struct {
 	// the real one does after a quiet spell; knockEvery is the hint fetch_vms then carries.
 	coldUpgrades int
 	knockEveryMs int
+	knockTries   int // how many times fetch_vms says to ask; 0 is 80
 	// rejectUpgrades is how many WebSocket upgrades to refuse, and with what status.
 	rejectUpgrades int
 	rejectStatus   int
@@ -96,6 +97,10 @@ func (f *fakeMuse) handleFetch(w http.ResponseWriter, r *http.Request) {
 	ok := r.Header.Get("Authorization") == "Bearer "+f.access && r.Header.Get("X-API-Version") == "1.0.0"
 	bearer := f.bearer
 	knockEveryMs := f.knockEveryMs
+	knockTries := f.knockTries
+	if knockTries == 0 {
+		knockTries = 80
+	}
 	f.mu.Unlock()
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -103,7 +108,7 @@ func (f *fakeMuse) handleFetch(w http.ResponseWriter, r *http.Request) {
 	}
 	answer := map[string]any{}
 	if knockEveryMs > 0 {
-		answer["retry_after_ms"], answer["max_retry_count"] = knockEveryMs, 80
+		answer["retry_after_ms"], answer["max_retry_count"] = knockEveryMs, knockTries
 	}
 	answer["vm_list"] = []map[string]any{
 		{"vm_ws_url": "wss://ignored", "vm_auth_token": "skip", "vm_name": "other", "vm_id": "vm0"},

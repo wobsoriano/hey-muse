@@ -604,6 +604,26 @@ func TestAColdVMIsAskedAgainUntilItOpens(t *testing.T) {
 	}
 }
 
+// A door that stays shut through a spell of asking is not asked that way again for a while: the
+// rounds after it try once each, at the backoff's pace, however often the API says to ask.
+func TestADoorThatStaysShutIsNotAskedAgainEveryRound(t *testing.T) {
+	h := start(t, func(h *harness, _ *State, _ *Config) {
+		h.fake.coldUpgrades, h.fake.knockEveryMs, h.fake.knockTries = 6, 100, 3
+	})
+	h.until(Online)
+	want := []string{"fetch Bearer access-0"}
+	for range 4 { // the first try and the three more the API allowed
+		want = append(want, "upgrade Bearer vmtok-0 -> 403")
+	}
+	for range 2 { // then one try a round
+		want = append(want, "fetch Bearer access-0", "upgrade Bearer vmtok-0 -> 403")
+	}
+	want = append(want, "fetch Bearer access-0", "upgrade Bearer vmtok-0 -> 0")
+	if events := h.fake.log(); !reflect.DeepEqual(events, want) {
+		t.Errorf("events = %q, want %q", events, want)
+	}
+}
+
 func TestUpgradeRefusalFetchesFreshCredentials(t *testing.T) {
 	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden} {
 		h := start(t, func(h *harness, _ *State, _ *Config) {

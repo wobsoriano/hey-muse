@@ -66,6 +66,7 @@ type timing struct {
 	backoffMax  time.Duration
 	authFloor   time.Duration // least wait after the VM refuses the bearer
 	healthy     time.Duration // a session registered this long clears the backoff
+	knockRest   time.Duration // least time between two spells of asking a refusing door again
 	refreshAge  time.Duration
 	tokenRetry  time.Duration
 }
@@ -84,6 +85,7 @@ var defaultTiming = timing{
 	backoffBase: 2 * time.Second,
 	backoffMax:  60 * time.Second,
 	authFloor:   15 * time.Second,
+	knockRest:   10 * time.Minute,
 	healthy:     30 * time.Second,
 	// Device access tokens live about four hours.
 	refreshAge: 3 * time.Hour,
@@ -293,6 +295,9 @@ type session struct {
 	p  sessionParams
 	ws *websocket.Conn
 
+	// knocked is how many times the door was asked again, read once run has returned.
+	knocked int
+
 	// sendMu orders everything written: Noise numbers each message, so sealing one and writing it
 	// must not interleave with another, and stream ids must reach the VM in the order they were
 	// taken.
@@ -345,8 +350,11 @@ func (s *session) run(ctx context.Context) (outcome, error) {
 	// until it is: seen on a Show 5, some eleven seconds of asking twice a second after an hour
 	// connected. Asked once a minute it never opened, because whatever brings the VM there had let
 	// go again by then. The API says how often to ask and how many times, so that is what is done,
-	// with the bearer it gave.
+	// with the bearer it gave. Only so often, though (Client.knocks): Meta's own firmware waits a
+	// minute after a 403 so as not to load the door, and a device refused for a real reason must
+	// not ask it eighty times every round.
 	knocked := 0
+	defer func() { s.knocked = knocked }()
 	for err != nil && resp != nil && resp.StatusCode == http.StatusForbidden && knocked < s.p.knocks && ctx.Err() == nil {
 		select {
 		case <-ctx.Done():
