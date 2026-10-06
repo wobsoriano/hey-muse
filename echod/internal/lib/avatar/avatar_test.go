@@ -221,3 +221,63 @@ func TestASetThatIsNotThereOrNotRightIsRefused(t *testing.T) {
 		t.Errorf("a sheet with no palette read as %v", err)
 	}
 }
+
+// A character cut out of a video has a soft edge: a color the palette makes half there is laid half
+// over what is behind it, and one wholly there replaces it, as a drawn character's pixels do.
+func TestASoftColorIsLaidOverWhatIsBehindIt(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(`{"cell": 2, "fps": 12, "animations": {
+		"idle": {"frames": 1, "columns": 1, "loop": true}, "listening": {"frames": 1, "columns": 1, "loop": true},
+		"thinking": {"frames": 1, "columns": 1, "loop": true}, "talking": {"frames": 1, "columns": 1, "loop": true}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	img := image.NewPaletted(image.Rect(0, 0, 2, 2), color.Palette{
+		color.NRGBA{}, color.NRGBA{200, 100, 0, 0x80}, color.NRGBA{200, 100, 0, 0xff},
+	})
+	img.Pix = []uint8{0, 1, 2, 1}
+	for _, name := range []string{Idle, Listening, Thinking, Talking} {
+		writePNG(t, filepath.Join(dir, name+".png"), img)
+	}
+	set, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	behind := color.RGBA{0, 100, 200, 0xff}
+	for i := 0; i < len(dst.Pix); i += 4 {
+		dst.Pix[i], dst.Pix[i+1], dst.Pix[i+2], dst.Pix[i+3] = behind.R, behind.G, behind.B, behind.A
+	}
+	set.Draw(dst, image.Point{}, 1, Idle, 0)
+	if got := dst.RGBAAt(0, 0); got != behind {
+		t.Errorf("a clear pixel changed what was behind it to %v", got)
+	}
+	if got, want := dst.RGBAAt(1, 0), (color.RGBA{100, 100, 100, 0xff}); got != want {
+		t.Errorf("a half-there pixel over %v came out %v, want %v", behind, got, want)
+	}
+	if got, want := dst.RGBAAt(0, 1), (color.RGBA{200, 100, 0, 0xff}); got != want {
+		t.Errorf("a solid pixel came out %v, want %v", got, want)
+	}
+}
+
+// A set named by MUSE_AVATAR_SET, such as one made from videos, loads within the limits and draws.
+func TestTheSetNamedLoads(t *testing.T) {
+	dir := os.Getenv("MUSE_AVATAR_SET")
+	if dir == "" {
+		t.Skip("MUSE_AVATAR_SET names no set")
+	}
+	set, err := Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("cell %d, %.1f MB decoded, %v a frame", set.Cell, float64(set.Bytes())/1048576, set.Interval())
+	dst := image.NewRGBA(image.Rect(0, 0, 960, 480))
+	for i := 0; i < len(dst.Pix); i += 4 {
+		dst.Pix[i], dst.Pix[i+1], dst.Pix[i+2], dst.Pix[i+3] = 0x0e, 0x1a, 0x18, 0xff
+	}
+	scale := set.Scale(440)
+	side := set.Cell * scale
+	set.Draw(dst, image.Pt((960-side)/2, (480-side)/2), scale, Talking, 20)
+	if out := os.Getenv("MUSE_AVATAR_PNG"); out != "" {
+		writePNG(t, out, dst)
+	}
+}

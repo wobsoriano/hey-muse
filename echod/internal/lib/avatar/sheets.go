@@ -20,12 +20,13 @@ type Set struct {
 }
 
 // sheet is one animation's frames, with its colors worked out for drawing: ink for a pixel, shade
-// for the grid's darker edge of it, and seen for whether the color shows at all.
+// for the grid's darker edge of it, and cover for how much of what is behind the color hides, from
+// none of it to all.
 type sheet struct {
 	pix   *image.Paletted
 	ink   [256]color.RGBA
 	shade [256]color.RGBA
-	seen  [256]bool
+	cover [256]uint8
 }
 
 // Load reads the set in dir. An error that Is os.ErrNotExist means there is no set there at all.
@@ -86,8 +87,9 @@ func loadSheet(path string, want image.Point, grid float64) (*sheet, error) {
 	}
 	for i, c := range pix.Palette {
 		n := color.NRGBAModel.Convert(c).(color.NRGBA)
-		// Clear or solid: a sheet's edges are pixels, and a pixel half there has nothing to blend with.
-		sh.seen[i] = n.A >= 0x80
+		// A drawn character's pixels are clear or solid. One cut out of a video has a soft edge, and
+		// its sheet's palette says how soft: the color is laid over what is there by that much.
+		sh.cover[i] = n.A
 		sh.ink[i] = color.RGBA{n.R, n.G, n.B, 0xff}
 		sh.shade[i] = color.RGBA{uint8(float64(n.R) * grid), uint8(float64(n.G) * grid), uint8(float64(n.B) * grid), 0xff}
 	}
@@ -110,7 +112,7 @@ func (s *Set) Scale(side int) int {
 }
 
 // Draw puts frame i of the named animation on dst with its top left corner at at, every pixel of it
-// scale wide. Clear pixels leave dst as it was. A frame that would not land wholly on dst is not
+// scale wide. Clear pixels leave dst as it was, and soft ones are laid over it. A frame that would not land wholly on dst is not
 // drawn.
 func (s *Set) Draw(dst *image.RGBA, at image.Point, scale int, name string, i int) {
 	sh, a := s.sheets[name], s.Animations[name]
@@ -128,10 +130,24 @@ func (s *Set) Draw(dst *image.RGBA, at image.Point, scale int, name string, i in
 		row := sh.pix.Pix[sh.pix.PixOffset(src.Min.X, src.Min.Y+sy):]
 		for sx := range s.Cell {
 			c := row[sx]
-			if !sh.seen[c] {
+			cover := uint32(sh.cover[c])
+			if cover == 0 {
 				continue
 			}
 			ink, shade := sh.ink[c], sh.shade[c]
+			if cover < 0xff {
+				for dy := range scale {
+					o := dst.PixOffset(at.X+sx*scale, at.Y+sy*scale+dy)
+					px := dst.Pix[o : o+scale*4 : o+scale*4]
+					for dx := range scale {
+						px[dx*4] = uint8((uint32(ink.R)*cover + uint32(px[dx*4])*(0xff-cover) + 0x7f) / 0xff)
+						px[dx*4+1] = uint8((uint32(ink.G)*cover + uint32(px[dx*4+1])*(0xff-cover) + 0x7f) / 0xff)
+						px[dx*4+2] = uint8((uint32(ink.B)*cover + uint32(px[dx*4+2])*(0xff-cover) + 0x7f) / 0xff)
+						px[dx*4+3] = 0xff
+					}
+				}
+				continue
+			}
 			for dy := range scale {
 				o := dst.PixOffset(at.X+sx*scale, at.Y+sy*scale+dy)
 				px := dst.Pix[o : o+scale*4 : o+scale*4]

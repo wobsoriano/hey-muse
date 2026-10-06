@@ -43,3 +43,23 @@ logged as `no Muse avatar installed` with the reason, and turns are drawn as the
 To take the character off again, delete `/data/misc/techo5/muse-avatar` and restart the daemon.
 
 The Echo Spot's round screen and the Echo Dot do not draw the character.
+
+## From videos, for a smoother character
+
+`make_sprites.py` draws Meta's pixel character. `make_video_sprites.py` makes a set from four short
+videos of a character on a plain white background instead, one each for idle, listening, thinking
+and talking:
+
+```sh
+uv run --with numpy --with pillow --with opencv-python-headless tools/muse-avatar/make_video_sprites.py \
+    --idle idle.mp4 --listening listening.mp4 --thinking thinking.mp4 --talking talking.mp4
+```
+
+It needs `ffmpeg`. It takes the white out from the frame's edges inward, keeps the character's edge
+soft, folds the end of each clip over its start so the loop has no jump, and writes the same kind of
+folder, to copy to the device the same way. The set is larger: at the default 432 pixels high and 12
+frames a second, four six-second clips are about 14 MB on disk and 50 MB of the device's memory.
+
+What makes a good video: the same framing in all four, a background that is one flat color, nothing
+of the character leaving the picture, and three to six seconds each. The videos are yours to supply
+and, like the character, are not in this repository.

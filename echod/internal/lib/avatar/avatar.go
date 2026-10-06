@@ -41,10 +41,10 @@ func ForPhase(phase string) (string, bool) {
 // Limits on what a manifest may ask for. A set is a megabyte or so; the ceiling is there so a
 // manifest that is wrong, or somebody else's, cannot take the memory of a device with one gigabyte.
 const (
-	maxCell     = 256
+	maxCell     = 512
 	maxFrames   = 2000
 	maxFPS      = 60
-	MaxBytes    = 8 << 20
+	MaxBytes    = 64 << 20
 	manifestMax = 64 << 10
 )
 
