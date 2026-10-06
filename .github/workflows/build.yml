@@ -85,7 +85,7 @@ jobs:
 
       # Cryptographically ties these files to this exact workflow run, source commit and tag (Sigstore,
       # keyless). Check by hand with:
-      #   gh attestation verify bin/echod-arm --repo wobsoriano/techo5 --source-ref refs/tags/<tag>
+      #   gh attestation verify bin/echod-arm --repo wobsoriano/techo5-muse --source-ref refs/tags/<tag>
       - name: Attest build provenance
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:

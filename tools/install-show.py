@@ -56,7 +56,7 @@ from techo5lib import (CONSOLE_TECHO5, Adb, Console, Fastboot, Release, ask_name
                        new_api_key, note, pick_unit, run_main, step, valid_api_key, wait_for, wifi_conf,
                        write_private)
 
-REPO = 'wobsoriano/techo5'
+REPO = 'wobsoriano/techo5-muse'
 # The LineageOS kernel commit TECHO5's kernel is rebuilt from: the vendor modules only load on it.
 # All three boards run this same commit, which is why one daemon and one installer serve them.
 KERNEL_RELEASE = '4.9.337-g8d928c5176cc'

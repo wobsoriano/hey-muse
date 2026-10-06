@@ -4,7 +4,7 @@
 
 .DESCRIPTION
   The daemon's built-in updater fetches
-  https://github.com/wobsoriano/techo5/releases/latest/download/manifest.json (stable) and
+  https://github.com/wobsoriano/techo5-muse/releases/latest/download/manifest.json (stable) and
   installs the binary it names. This script produces both files and publishes them with gh.
 
 .EXAMPLE
@@ -61,7 +61,7 @@ foreach ($t in @($Rootfs) | Where-Object { $_ }) {
     if (& tar -tzf $t | Where-Object { $_ -match '^(\./)?vendor/.' } | Select-Object -First 1) { throw "$t carries a vendor tree; build it without VENDOR_TGZ" }
 }
 if (-not $SignKey -or -not (Test-Path $SignKey)) { throw "no release signing key: set TECHO5_SIGN_KEY or pass -SignKey" }
-$repo = 'wobsoriano/techo5'
+$repo = 'wobsoriano/techo5-muse'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
 $bin = Join-Path $root 'bin'
 New-Item -ItemType Directory -Force $bin | Out-Null

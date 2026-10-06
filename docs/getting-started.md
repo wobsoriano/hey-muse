@@ -92,7 +92,7 @@ board is called out — `checkers`, `cronos`, `crown`.
    **Shortcut: straight from TWRP.** Steps 2 to 4 can be skipped. Download the LineageOS zip from step
    2's thread, and with the Show still in TWRP and connected by USB, get the installer and run it with it:
    ```
-   git clone https://github.com/wobsoriano/techo5
+   git clone https://github.com/wobsoriano/techo5-muse
    cd techo5
    python3 tools/install-show.py --lineage-zip lineage-18.1-XXXXXXXX-UNOFFICIAL-cronos.zip --wifi "MyNetwork"
    ```
@@ -115,14 +115,14 @@ board is called out — `checkers`, `cronos`, `crown`.
    *Check:* `adb devices` on the computer lists the Show as `device`.
 4. **Install TECHO5.** With the Show connected by USB and on LineageOS:
    ```
-   git clone https://github.com/wobsoriano/techo5
+   git clone https://github.com/wobsoriano/techo5-muse
    cd techo5
    python3 tools/install-show.py --dry-run
    python3 tools/install-show.py
    ```
    It finds the Show on its own (and asks which, if more than one is plugged in), asks what to call
    it in Home Assistant, and asks once, with a summary, before anything is erased. The dry run
-   downloads and checks the [latest release](https://github.com/wobsoriano/techo5/releases/latest)
+   downloads and checks the [latest release](https://github.com/wobsoriano/techo5-muse/releases/latest)
    (boot image with Bluetooth, root filesystem); the second run replaces LineageOS with TECHO5 and
    waits for the first boot, saying what it is waiting for as it goes. For a script, every question
    has a switch: `--serial <serial> --name "Kitchen" --force`. Turning on **Rooted debugging** first lets it keep a backup of LineageOS's boot
