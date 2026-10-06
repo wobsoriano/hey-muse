@@ -114,6 +114,12 @@ if [ -d "$INPUTS/models" ]; then
 		cmp -s "$m" "$STAGE/overlay/usr/share/techo5/models/$(basename "$m")" || { echo "model copy differs: $m" >&2; exit 1; }
 	done
 fi
+# The fork's own wake word, "Hey Muse" (tools/wake), goes in beside them whatever inputs there are.
+mkdir -p "$STAGE/overlay/usr/share/techo5/models"
+for m in "$ROOT"/tools/wake/*.tflite "$ROOT"/tools/wake/*.json; do
+	cp "$m" "$STAGE/overlay/usr/share/techo5/models/"
+	cmp -s "$m" "$STAGE/overlay/usr/share/techo5/models/$(basename "$m")" || { echo "model copy differs: $m" >&2; exit 1; }
+done
 # The built-in voice's data goes with its helper, where the daemon looks for it (lib/speech), and
 # after the line endings for the same reason: it is binary.
 if [ -e "$STAGE/bin/techo5-pico" ]; then

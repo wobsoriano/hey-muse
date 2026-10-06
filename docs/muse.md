@@ -78,6 +78,13 @@ Pairing keeps the setup secrets from someone who is only listening. It does not 
 is, so it cannot stop someone in the middle. The device is open to pairing only while the 10 minutes
 run. Pair on a network you trust, and press **Stop pairing** if you change your mind.
 
+## The wake word
+
+The image carries a wake word of its own, **Hey Muse**, beside TECHO5's. Choose it on the device
+(swipe down from the top, **Sound**, **Wake word**). It is a choice and not what a new device listens
+for: it was trained on synthetic voices only and tried by one person, on one Show 5, in one room.
+[tools/wake/README.md](../tools/wake/README.md) says how it was made.
+
 ## Choose a voice
 
 Muse answers in text, so the device has to say it.

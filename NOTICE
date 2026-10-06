@@ -185,3 +185,9 @@ Test audio, echod/internal/lib/denoise/testdata (not shipped in any release)
   out_ files are the output of mmse_log_spu.py from
   https://github.com/vipchengrui/traditional-speech-enhancement (MIT, Copyright (c) 2019
   vipchengrui), which gen.py fetches and runs; that code is not copied into this repository.
+
+"Hey Muse" wake word, tools/wake/hey_muse.tflite
+  A microWakeWord model this project trained, with
+  https://github.com/TaterTotterson/microWakeWord-Trainer-AppleSilicon on microWakeWord (Apache
+  License 2.0, Kevin Ahrendt), from synthetic speech and the datasets tools/wake/README.md lists.
+  None of those recordings is in this repository.

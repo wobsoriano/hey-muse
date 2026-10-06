@@ -21,6 +21,7 @@ who answers. Everything else about the device is TECHO5's, and its own README is
   then shows up in the Muse app's device list like any Muse gadget.
 - **A voice with no server at home.** Answers are spoken through an OpenAI-style speech endpoint, or
   by a built-in voice (SVOX Pico) that needs no key and no internet.
+- **A "Hey Muse" wake word,** beside TECHO5's own, chosen on the device.
 - **Things Muse can do on the device.** Timers, alarms, the volume, the radio and a few screen pages.
 - **The Muse character on screen** during a turn, if you generate it from your own copy of Meta's
   SDK. The character is Meta's and is not in this repository.
@@ -72,6 +73,7 @@ On one Echo Show 5 2nd gen (cronos), in October 2026:
 - Wake word, question, spoken answer, with the cloud voice and with the built-in voice.
 - Muse setting a timer and changing the volume.
 - The character on screen.
+- The "Hey Muse" wake word, with one voice.
 
 Not tested: pairing from Android, the Show 5 1st gen, the Show 8, the Spot and the Dot, pairing while
 Bluetooth earbuds are connected, the setup page's pairing button (pairing was done from the command
