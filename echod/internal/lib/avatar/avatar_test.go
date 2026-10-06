@@ -281,3 +281,43 @@ func TestTheSetNamedLoads(t *testing.T) {
 		writePNG(t, out, dst)
 	}
 }
+
+// One frame of the set MUSE_AVATAR_SET names, drawn the way a Show 5 draws it.
+func BenchmarkTheSetNamed(b *testing.B) {
+	dir := os.Getenv("MUSE_AVATAR_SET")
+	if dir == "" {
+		b.Skip("MUSE_AVATAR_SET names no set")
+	}
+	set, err := Load(dir)
+	if err != nil {
+		b.Fatal(err)
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, 960, 480))
+	scale := set.Scale(440)
+	at := image.Pt((960-set.Cell*scale)/2, (480-set.Cell*scale)/2)
+	frames := set.Animations[Talking].Frames
+	b.ResetTimer()
+	for i := range b.N {
+		set.Draw(dst, at, scale, Talking, i%frames)
+	}
+}
+
+// The wait for the next frame ends on the frame's own clock, however long drawing this one took.
+func TestTheNextFrameIsDueOnTheClock(t *testing.T) {
+	m, err := Parse([]byte(good))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var p Playhead
+	start := time.Date(2026, 10, 6, 12, 0, 0, 0, time.UTC)
+	p.Frame(m, Idle, start)
+	for drew, want := range map[time.Duration]time.Duration{
+		0:                     80 * time.Millisecond,
+		30 * time.Millisecond: 50 * time.Millisecond,
+		95 * time.Millisecond: 65 * time.Millisecond,
+	} {
+		if got := p.Until(m, start.Add(drew)); got != want {
+			t.Errorf("%v after a frame, the next is due in %v, want %v", drew, got, want)
+		}
+	}
+}

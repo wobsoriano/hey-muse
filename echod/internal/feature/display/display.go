@@ -2073,7 +2073,7 @@ func (d *Display) frame() time.Duration {
 		return home.SlideshowFrame
 	}
 	if turnShown(s) && s.avatar != nil {
-		return s.avatar.Interval() // the character is moving
+		return d.r.av.Until(s.avatar.Manifest, time.Now()) // the character is moving
 	}
 	if turnShown(s) && !(s.phase == "lingering" && s.eq.quiet) {
 		if s.eq.wave {

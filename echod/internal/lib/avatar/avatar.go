@@ -44,7 +44,7 @@ const (
 	maxCell     = 512
 	maxFrames   = 2000
 	maxFPS      = 60
-	MaxBytes    = 64 << 20
+	MaxBytes    = 128 << 20
 	manifestMax = 64 << 10
 )
 
@@ -162,4 +162,15 @@ func (p *Playhead) Frame(m Manifest, name string, now time.Time) int {
 		p.name, p.since = name, now
 	}
 	return m.Animations[name].FrameAt(m.FPS, now.Sub(p.since))
+}
+
+// Until is how long from now the frame after the one Frame last gave is due: what a screen that has
+// just drawn waits before it draws again. Waiting a whole frame's length instead adds the time the
+// drawing took to every frame, and the character then skips one now and again to keep to the clock.
+func (p *Playhead) Until(m Manifest, now time.Time) time.Duration {
+	every := m.Interval()
+	if p.name == "" || now.Before(p.since) || every <= 0 {
+		return every
+	}
+	return every - now.Sub(p.since)%every
 }
