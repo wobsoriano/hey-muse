@@ -5,7 +5,8 @@ for the Echo Show, signed with its own key. [building.md](building.md#releases-m
 upstream's release, which runs from Windows. This page is the same job from a Mac with no Docker and
 one Show on the network.
 
-Steps marked **not verified** were worked out from the scripts and have not been run.
+`v1.0.0-muse.1` was cut this way on 2026-10-06. Steps marked **not verified** were worked out from the
+scripts and have not been run.
 
 ## What differs from upstream
 
@@ -89,11 +90,11 @@ Assistant's update card shows a version with a suffix is **not verified**.
    Try the release on the device now. Say the wake word, finish a turn, and check that the device
    comes back after a reboot.
 
-4. Bring the tarball back. It is the file the device just installed. **Not verified**: the copy
-   back.
+4. Bring the tarball back. It is the file the device just installed. The device has no sftp, so
+   copy it over plain SSH and compare its sha256 with the device's.
 
    ```sh
-   scp -O root@<the Show's address>:/data/techo5-linux/techo5-rootfs-$V.tar.gz bin/
+   ssh root@<the Show's address> "cat /data/techo5-linux/techo5-rootfs-$V.tar.gz" > bin/techo5-rootfs-$V.tar.gz
    tar -tzf bin/techo5-rootfs-$V.tar.gz | grep -E '^(\./)?vendor/.' && echo "STOP: vendor tree inside"
    ```
 
@@ -111,7 +112,7 @@ Assistant's update card shows a version with a suffix is **not verified**.
    (cd bin && shasum -a 256 echod-arm techo5-rootfs-$V.tar.gz manifest.json manifest.json.sig > SHA256SUMS)
    ```
 
-6. Tag and publish. **Not verified**: nothing has been published from this fork.
+6. Tag and publish.
 
    ```sh
    git tag $V && git push fork $V
@@ -142,7 +143,8 @@ Assistant's update card shows a version with a suffix is **not verified**.
 
 `install-show.py` flashes a boot image, and it uses only one that a manifest signed by this fork's
 key names. The Muse branch does not change the kernel, so upstream's boot image is the right one.
-Two ways to give the installer one, both **not verified**:
+Two ways to give the installer one. The first is **not verified**; the second is what
+`v1.0.0-muse.1` did, for the Show 5 2nd gen only:
 
 - Pass it yourself. Download `techo5-boot-<version>.img` from an upstream release and run
   `python3 tools/install-show.py --boot <that file>`.
@@ -162,7 +164,8 @@ gh run download --repo wobsoriano/techo5-muse -n techo5-$V -D bin
 PREBUILT_DAEMON=bin/echod-arm HOST=<the Show's address> tools/linux/deploy-rootfs.sh --version $V --install
 ```
 
-This is **not verified** in the fork. It needs Actions and artifact attestations turned on there.
+The tag's workflow ran and passed for `v1.0.0-muse.1`, which is the only place the three device
+builds are tested on Linux. Shipping its binary in place of a local build is **not verified**.
 
 The root filesystem could be built on a runner too. `deploy-rootfs.sh --out` builds it on x86_64
 Linux with `qemu-user-static`, `binfmt-support` and Alpine's static `apk`, and the same runner can
