@@ -114,15 +114,23 @@ var testResult = pairing.Result{AccessToken: "access-one", RefreshToken: "refres
 // state.json.
 func TestPairingThenRotation(t *testing.T) {
 	rotated := make(chan error, 1)
+	// The feature may start the client more than once as the settings settle, and only the first run
+	// is listened to: a later one with nobody to hear it must not hold up the shutdown.
+	report := func(err error) {
+		select {
+		case rotated <- err:
+		default:
+		}
+	}
 	f, made := start(t, config.BrainMuse, func(ctx context.Context, cfg muse.Config) error {
 		cfg.OnState(muse.ConnState{Phase: muse.Online})
 		st, err := cfg.Store.Load()
 		if err != nil {
-			rotated <- err
+			report(err)
 			return err
 		}
 		st.Credentials.AccessToken, st.Credentials.RefreshToken = "access-two", "refresh-two"
-		rotated <- cfg.Store.Save(st)
+		report(cfg.Store.Save(st))
 		<-ctx.Done()
 		return ctx.Err()
 	})

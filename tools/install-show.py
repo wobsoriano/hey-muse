@@ -272,8 +272,11 @@ def default_key_file(backup):
 
 
 def show_version(tag):
-    m = re.match(r'^v(\d+)\.(\d+)\.(\d+)$', tag)
-    return tuple(int(x) for x in m.groups()) if m else None
+    """A Show release's tag as something that orders: vX.Y.Z, or this fork's vX.Y.Z-muse.N, which comes
+    after the vX.Y.Z it is built on and before the next. Without the suffix read, no release of the
+    fork was "earlier" than another, and one with no boot image of its own found none to use."""
+    m = re.match(r'^v(\d+)\.(\d+)\.(\d+)(?:-muse\.(\d+))?$', tag)
+    return tuple(int(x or 0) for x in m.groups()) if m else None
 
 
 def boot_name(dev, tag):
