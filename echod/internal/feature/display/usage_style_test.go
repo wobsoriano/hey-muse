@@ -34,6 +34,11 @@ func TestTheUsageStyleDrawsTheBoard(t *testing.T) {
 	old := usageBoard
 	defer func() { usageBoard = old }()
 	usageBoard = func() (meters.Board, bool) { return board, true }
+	// No mark: the device this runs on may have one, in the note's own color.
+	usageMarkOnce.Do(func() {})
+	mark := usageMarkImg
+	defer func() { usageMarkImg = mark }()
+	usageMarkImg = nil
 
 	r := newRenderer(image.NewRGBA(image.Rect(0, 0, 960, 480)))
 	s := scene{now: now}
