@@ -110,9 +110,6 @@ On a Show or a Spot the voice can also be changed on the device, under Settings 
 
 ## What Muse can do on the device
 
-**Not seen working yet.** The device offers these commands and Muse accepts them, but Muse has not
-called one in use. See [What was tested](#what-was-tested).
-
 Muse is offered these commands and decides for itself when to call one. They act on this device
 only. There is nothing here that reaches another device, your music library, the web or Home
 Assistant.
@@ -169,14 +166,13 @@ Tested on one Echo Show 5 2nd gen (`cronos`) on 2026-10-05:
 - Wake word, to Muse, to a spoken answer with the cloud voice.
 - The built-in voice.
 - The avatar on the screen.
+- Muse changing the volume and setting an alarm on the device, asked aloud and typed in the Muse
+  app.
 - Reconnecting after a reboot.
 
 Not tested:
 
-- **Muse using the device's commands.** The device offers them to Muse when it registers, and Muse
-  accepts the registration. In two days of use Muse never called one: asked to "increase the volume",
-  it answered about the phone's volume. Whether Muse calls a gadget's commands from a voice note, and
-  what it takes to make it, is not known.
+- The timer, radio and screen commands. Only the volume and an alarm were tried.
 - Pairing from the Muse app on Android.
 - The Echo Show 5 1st gen, the Show 8, the Spot and the Dot.
 - Pairing while Bluetooth earbuds are connected.
