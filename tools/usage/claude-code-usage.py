@@ -30,7 +30,7 @@ def board(session):
     for label, name in (("Current", "five_hour"), ("Weekly", "seven_day")):
         window = limits.get(name) or {}
         rows.append({"label": label, "percent": window.get("used_percentage") or 0, "resets_at": int(window.get("resets_at") or 0)})
-    return {"title": "Usage", "note": (session.get("model") or {}).get("display_name", ""), "rows": rows}
+    return {"title": "Usage", "rows": rows}
 
 
 def main():
