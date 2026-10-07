@@ -45,6 +45,8 @@ type Config struct {
 	Dashboard      Dashboard      `json:"dashboard"`
 	Calendar       Calendar       `json:"calendar"`
 	Brain          Brain          `json:"brain"`
+	Deck           Deck           `json:"deck,omitempty"`
+	Video          Video          `json:"video,omitempty"`
 }
 
 // Defaults is a device nobody has set anything on.
@@ -104,6 +106,8 @@ func (w Writer) Brain() BrainWriter                   { return BrainWriter(w) }
 func (w Writer) TalkBack() TalkBackWriter             { return TalkBackWriter(w) }
 func (w Writer) Streaming() StreamingWriter           { return StreamingWriter(w) }
 func (w Writer) Presence() PresenceWriter             { return PresenceWriter(w) }
+func (w Writer) Deck() DeckWriter                     { return DeckWriter(w) }
+func (w Writer) Video() VideoWriter                   { return VideoWriter(w) }
 
 // Wake names one slot, since every wake word setting belongs to one.
 func (w Writer) Wake(slot int) WakeWriter { return WakeWriter{st: w.st, slot: slot} }

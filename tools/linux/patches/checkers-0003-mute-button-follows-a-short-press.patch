@@ -1,23 +1,24 @@
 diff --git a/drivers/misc/gating.c b/drivers/misc/gating.c
-index 0c8deec0ac98..a6b39d39f4a7 100644
+index 31d6c71f6c60..9cc2631a9abd 100644
 --- a/drivers/misc/gating.c
 +++ b/drivers/misc/gating.c
-@@ -168,8 +168,27 @@ static void handle_gating_button_event(struct gating_input_event *input,
+@@ -187,8 +187,28 @@ static void handle_gating_button_event(struct gating_input_event *input,
  
  	delay = input->last_event_time + LONG_PRESS_DURATION;
  	/* if it is long press, it is a gating event */
 -	if (!time_before(delay, jiffies))
 +	if (!time_before(delay, jiffies)) {
-+		/* Any press turns the latch off in hardware, short ones too. A
-+		 * short press after gating was turned on from userspace leaves
-+		 * cur_state at GATED, so the next long press only "ungates" what
-+		 * is already ungated and gating never comes on. Catch up here.
++		/*
++		 * Any press turns the latch off in hardware, short ones too. A short press after gating
++		 * was turned on from userspace leaves cur_state at GATED, so the next long press only
++		 * "ungates" what is already ungated and gating never comes on. Catch up here, after any
++		 * pending update has finished, and only when the pin is read and reads released.
 +		 */
-+		if (__gating_state(priv) != UNGATED)
-+			goto out;
++		flush_work(&priv->priv_update);
 +
 +		mutex_lock(&priv->mutex);
-+		if (priv->cur_state != GATED || priv->req_state != NONE) {
++		if (gpiod_get_value_cansleep(priv->state_gpio) != UNGATED ||
++				priv->cur_state != GATED || priv->req_state != NONE) {
 +			mutex_unlock(&priv->mutex);
 +			goto out;
 +		}

@@ -38,10 +38,7 @@ func (r *renderer) weatherPage(s scene) {
 
 	days := s.forecast
 	now := s.weather
-	cond := now.Condition
-	if cond == "" && len(days) > 0 {
-		cond = days[0].Condition
-	}
+	cond := weatherNow(now, days, s.now)
 	// The day's weather, large and faint, behind everything.
 	// Sized from the width, not the height: on the Show 5 both give 720, but a taller panel would
 	// grow this until it swallowed the page.

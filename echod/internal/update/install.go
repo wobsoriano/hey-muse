@@ -18,7 +18,7 @@ import (
 )
 
 // downloadTimeout bounds the fetch. Sixteen megabytes over a satellite's wifi is not quick, and a stalled
-// download should give up rather than hold the device in an installing state for ever.
+// download should give up rather than hold the device in an installing state forever.
 const downloadTimeout = 10 * time.Minute
 
 // installing is held for the whole of an install, so a second request while one is running is refused

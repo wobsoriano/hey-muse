@@ -91,6 +91,9 @@ func (r *renderer) styledClock(s scene, style string) {
 	case glance:
 		bottom = r.h - r.s(50) - r.s(46) - r.s(16)
 	}
+	if style == styleGlow {
+		r.glowGround(s)
+	}
 	if timers {
 		r.timersLine(s, bottom-r.s(16))
 		bottom -= r.s(64)
@@ -120,6 +123,14 @@ func (r *renderer) styledClock(s scene, style string) {
 	case styleDashboard:
 		r.dashboardStyle(s, box)
 		corner = false
+	case styleBinary:
+		r.binaryStyle(s, box)
+	case styleWorld:
+		r.worldStyle(s, box)
+	case styleAgenda:
+		r.agendaStyle(s, box)
+	case styleGlow:
+		r.glowStyle(s, box)
 	}
 	if glance {
 		r.glanceStrip(s.glance, s.callButton)

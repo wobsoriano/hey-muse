@@ -131,7 +131,7 @@ func skipID3(body *bufio.Reader) error {
 }
 
 // syncMost is how far into a stream a frame header is looked for, before or after a bad frame: the
-// decoder scans byte by byte, and a stream of something else called MP3 would keep it scanning for ever.
+// decoder scans byte by byte, and a stream of something else called MP3 would keep it scanning forever.
 const syncMost = 256 << 10
 
 // scanLimit is the stream as the decoder reads it, failing once the decoder has read syncMost bytes

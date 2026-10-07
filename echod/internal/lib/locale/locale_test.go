@@ -64,3 +64,22 @@ func TestSky(t *testing.T) {
 		t.Errorf("an unnamed condition: %q", got)
 	}
 }
+
+// The clock styles' day words in each screen language, English for one with none.
+func TestTheClockStylesWords(t *testing.T) {
+	for lang, want := range map[string][3]string{
+		"": {"Tomorrow", "All day", "Nothing on the calendar"}, "de": {"Morgen", "Ganztägig", "Keine Termine"},
+		"es": {"Mañana", "Todo el día", "Nada en el calendario"}, "fr": {"Demain", "Toute la journée", "Rien au calendrier"},
+		"it": {"Domani", "Tutto il giorno", "Niente in calendario"}, "nl": {"Morgen", "Hele dag", "Niets in de agenda"},
+		"xx": {"Tomorrow", "All day", "Nothing on the calendar"},
+	} {
+		if got := [3]string{Tomorrow(lang), AllDay(lang), NothingOn(lang)}; got != want {
+			t.Errorf("%q: %q, want %q", lang, got, want)
+		}
+		for _, w := range []string{Here(lang), Yesterday(lang), Now(lang), NothingToday(lang), NothingElse(lang)} {
+			if w == "" {
+				t.Errorf("%q: an empty word", lang)
+			}
+		}
+	}
+}

@@ -95,6 +95,14 @@ func (r *roundRenderer) styledClockFace(s roundScene, style string) {
 		r.sunFace(s)
 	case styleDashboard:
 		r.dashboardFace(s)
+	case styleBinary:
+		r.binaryFace(s)
+	case styleWorld:
+		r.worldFace(s)
+	case styleAgenda:
+		r.agendaFace(s)
+	case styleGlow:
+		r.glowFace(s)
 	}
 }
 

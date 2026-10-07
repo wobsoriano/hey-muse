@@ -66,6 +66,9 @@ type Home struct {
 	// with nobody answering. Off unless somebody turns it on: it is a way to listen in on a room.
 	DropIn bool `json:"drop_in,omitempty"`
 
+	// RingSound is how a call rings here, one of the phone's ring sounds; empty is the first of them.
+	RingSound string `json:"ring_sound,omitempty"`
+
 	// DoNotDisturb turns intercom calls away: the caller is told, and nothing rings here.
 	DoNotDisturb bool `json:"do_not_disturb,omitempty"`
 
@@ -257,6 +260,10 @@ func (w HomeWriter) HouseWord(v string) error {
 
 func (w HomeWriter) DropIn(v bool) error {
 	return w.st.Update(func(c *Config) { c.Home.DropIn = v })
+}
+
+func (w HomeWriter) RingSound(v string) error {
+	return w.st.Update(func(c *Config) { c.Home.RingSound = v })
 }
 
 func (w HomeWriter) DoNotDisturb(v bool) error {

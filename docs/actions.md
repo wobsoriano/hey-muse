@@ -70,7 +70,9 @@ Assistant. Alarms, radio stations, Wi-Fi and its other settings stay.
 Afterward, delete the device from **Settings → Devices & services → ESPHome** in your Home Assistant.
 The new key isn't shown anywhere. To add the device to another Home Assistant later, open its setup
 page, go to **General**, and choose **Let a Home Assistant add this device**: for 15 minutes the
-device has no key, and the Home Assistant that adds it sets one.
+device has no key, and the Home Assistant that adds it sets one. Home Assistant sends that key over
+your network unencrypted, as it does for ESPHome devices, so open the window only on a network you
+trust. Adding a device with nothing typed needs a recent Home Assistant (tested with 2026.9).
 
 ### confirm (Required)
 
@@ -1014,6 +1016,60 @@ actions:
       - action: esphome.office_dashboard_show
     else:
       - action: esphome.office_dashboard_hide
+```
+
+## Press a deck button
+
+In YAML, refer to this action as `esphome.<node>_deck_press`.
+
+Does what a TECHO5 Deck button does, as if it were pressed on the screen: an automation can switch
+an OBS scene or start the stream with it. Show only. See [TECHO5 Deck](deck.md).
+
+### page (Required)
+
+The page, counting from 1.
+
+### button (Required)
+
+The button on that page, counting from 1, row by row: on a 4-across deck the second row starts at 5.
+
+## Play a video
+
+In YAML, refer to this action as `esphome.<node>_play_video`.
+
+Plays a video full screen, with its sound, in place of any video already playing. Show and Spot,
+and only while the **Video** switch is on. See [Video](video.md).
+
+### url (Required)
+
+*string*
+
+An `http://` or `https://` address: MP4, MKV, MPEG-TS or HLS, best as H.264 at 720p or less. Other
+kinds of address (files, `rtsp://`) are refused.
+
+### title (Required)
+
+*string*
+
+What the screen and the **Video title** sensor call it. `""` for none: they show the address's host
+instead.
+
+```yaml
+action: esphome.office_play_video
+data:
+  url: "http://192.168.1.20:8096/Videos/clip.mp4"
+  title: "Front door"
+```
+
+## Stop, pause or carry on a video
+
+In YAML, refer to these actions as `esphome.<node>_stop_video`, `esphome.<node>_pause_video` and
+`esphome.<node>_resume_video`. They take nothing, and do nothing when no video is playing. Stop also
+takes down a DLNA video's question on the screen.
+
+```yaml
+action: esphome.office_stop_video
+data: {}
 ```
 
 ## Choose the weather shown on the idle screen

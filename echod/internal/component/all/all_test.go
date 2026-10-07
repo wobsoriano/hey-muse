@@ -97,6 +97,7 @@ var registered = []string{
 	"phone_answer",
 	"phone_hangup",
 	"phone_peer",
+	"phone_ring_sound",
 	"purge_cache",
 	"quiet_hours",
 	"radar_source",
@@ -198,6 +199,7 @@ var registered = []string{
 	"wifi_sent",
 	"wifi_signal",
 	"screen_clock_tap",
+	"screen_clock_style_swipe",
 	"screen_dashboard_return",
 	"screen_dashboard_tiles",
 }

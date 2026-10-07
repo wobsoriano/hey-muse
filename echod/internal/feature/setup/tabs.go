@@ -81,6 +81,7 @@ func head(w http.ResponseWriter) {
  button{font:inherit;padding:.55rem 1.1rem;border:0;border-radius:999px;background:var(--accent);color:var(--bg);font-weight:600;cursor:pointer}
  a{color:var(--accent)}
  .note{color:var(--dimtext);font-size:.9rem} .ok{color:var(--ok)} .bad{color:var(--bad)}
+ .deckrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr));gap:.4rem;margin-bottom:.4rem} .deckrow>p{grid-column:1/-1}
  button.quiet{background:var(--field);color:var(--text);border:1px solid var(--line);font-weight:500;padding:.35rem .9rem}
  .playing{color:var(--ok);display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
  .banner{border:1px solid color-mix(in srgb,var(--ok) 50%%,var(--bg));background:color-mix(in srgb,var(--ok) 10%%,var(--bg));border-radius:10px;padding:.5rem .8rem;margin:0 0 1rem}

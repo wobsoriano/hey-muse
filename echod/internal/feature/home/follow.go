@@ -58,8 +58,20 @@ var followed struct {
 	// else's music, so Done does not stop it, it only puts it away until the next track.
 	dismissed string
 
+	// played is whether the player has been heard playing since this follow began, and pausedAt
+	// when it last went from playing to paused. Some players never stop: a Sonos that is stopped
+	// stays paused on its last track for good. So a pause lets the page go after followPausedFor,
+	// and a player first heard paused (a restart in the middle of one) is not shown until it
+	// plays. pauseEnd redraws the page when the pause runs out.
+	played   bool
+	pausedAt time.Time
+	pauseEnd *time.Timer
+
 	cancel context.CancelFunc // ends the current follow
 }
+
+// followPausedFor is how long a paused followed player stays on the page.
+var followPausedFor = 10 * time.Minute
 
 func (f *Feature) buildFollowSelect() {
 	f.followSel = &esphome.Select{
@@ -230,6 +242,11 @@ func (f *Feature) restartFollow() {
 	followed.name, followed.picture, followed.artFor, followed.art, followed.thumb = "", "", "", nil, nil
 	followed.dismissed, followed.coverAt, followed.coverWait, followed.fetching = "", time.Time{}, 0, ""
 	followed.pos, followed.posSet = media.Position{}, false
+	followed.played, followed.pausedAt = false, time.Time{}
+	if followed.pauseEnd != nil {
+		followed.pauseEnd.Stop()
+		followed.pauseEnd = nil
+	}
 	if entity == "" {
 		followed.mu.Unlock()
 		return
@@ -296,6 +313,21 @@ func (f *Feature) heard(entity string, e hass.LiveEntity) {
 		return
 	}
 	followed.state = e.State
+	switch e.State {
+	case "playing":
+		followed.played, followed.pausedAt = true, time.Time{}
+		if followed.pauseEnd != nil {
+			followed.pauseEnd.Stop()
+			followed.pauseEnd = nil
+		}
+	case "paused":
+		// The pause is timed from when it began: a reconnect that hears it paused again does not
+		// start it over.
+		if followed.played && followed.pausedAt.IsZero() {
+			followed.pausedAt = time.Now()
+			followed.pauseEnd = time.AfterFunc(followPausedFor+time.Second, func() { f.Changed.Emit(struct{}{}) })
+		}
+	}
 	followed.name = str("friendly_name")
 	followed.title, followed.artist, followed.album = str("media_title"), str("media_artist"), str("media_album_name")
 	followed.pos, followed.posSet = followedPosition(followed.title, e)
@@ -384,8 +416,9 @@ func followedKey() string {
 	return followed.entity + "\x00" + followed.title + "\x00" + followed.artist
 }
 
-// Following reports whether the page is showing the followed player: it is playing or paused on a
-// track, nothing of this device's own is on the page, and the track has not been put away with Done.
+// Following reports whether the page is showing the followed player: it is playing on a track, or
+// paused for less than followPausedFor after playing, nothing of this device's own is on the page, and
+// the track has not been put away with Done.
 func Following() bool {
 	if ownMusic() {
 		return false
@@ -401,6 +434,9 @@ func followingLocked() bool {
 	}
 	if followed.title == "" && followed.artist == "" {
 		return false // a player that is on with nothing named is nothing to show
+	}
+	if followed.state == "paused" && (!followed.played || time.Since(followed.pausedAt) >= followPausedFor) {
+		return false
 	}
 	return followed.dismissed != followedKey()
 }

@@ -19,7 +19,7 @@ func TestClockTapSetting(t *testing.T) {
 		t.Fatalf("default is %s", clockTaps[clockTapIndex()].label)
 	}
 	s := clockTapSelect()
-	for _, c := range []struct{ label, kept string }{{"Dashboard", "dashboard"}, {"Nothing", "nothing"}, {"Assist", ""}} {
+	for _, c := range []struct{ label, kept string }{{"Dashboard", "dashboard"}, {"Nothing", "nothing"}, {"Deck", "deck"}, {"Assist", ""}} {
 		s.OnCommand(c.label)
 		if got := config.Get().Screen.ClockTap; got != c.kept {
 			t.Errorf("%s: kept %q, want %q", c.label, got, c.kept)

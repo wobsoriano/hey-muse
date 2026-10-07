@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,6 +21,7 @@ import (
 	"github.com/HuskerMinion/techo5/echod/internal/config"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/home"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/media"
+	"github.com/HuskerMinion/techo5/echod/internal/feature/video"
 	"github.com/HuskerMinion/techo5/echod/internal/hardware/speaker"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/safe"
 )
@@ -37,11 +39,15 @@ const (
 	stLoading = "TRANSITIONING"
 )
 
-// song is what a controller set: where it is and what it is.
+// song is what a controller set: where it is and what it is. A video (isVideo) is played by
+// feature/video rather than here, from asks who sent it.
 type song struct {
 	uri, meta                 string
 	title, artist, album, art string
 	dur                       time.Duration
+	class, mime               string // the description's upnp:class and its res's content type
+	video                     bool
+	from                      string
 }
 
 type renderer struct {
@@ -59,6 +65,9 @@ type renderer struct {
 	pausedFor time.Duration
 	ended     bool // the song played to its end (not stopped, not replaced)
 	endedGen  int  // the start whose stream ran out on its own (the source saw the end of it)
+
+	// videoID is the video feature/video is playing for the current song, when it is a video.
+	videoID uint64
 }
 
 // firstBytes is how long a server has to start sending the song once it has answered.
@@ -125,7 +134,7 @@ func (r *renderer) avTransport(name string, args map[string]string, from string)
 	case "SetAVTransportURI":
 		return nil, r.set(args["CurrentURI"], args["CurrentURIMetaData"], from)
 	case "SetNextAVTransportURI":
-		return nil, r.setNext(args["NextURI"], args["NextURIMetaData"])
+		return nil, r.setNext(args["NextURI"], args["NextURIMetaData"], from)
 	case "Play":
 		return nil, r.play()
 	case "Pause":
@@ -141,14 +150,22 @@ func (r *renderer) avTransport(name string, args map[string]string, from string)
 		return []kv{{"CurrentTransportState", r.sync()}, {"CurrentTransportStatus", "OK"}, {"CurrentSpeed", "1"}}, nil
 	case "GetPositionInfo":
 		r.sync()
+		vpos, vdur, isVideo := r.videoPosition()
 		r.mu.Lock()
 		defer r.mu.Unlock()
 		track := "0"
 		if r.cur.uri != "" {
 			track = "1"
 		}
-		return []kv{{"Track", track}, {"TrackDuration", hms(r.cur.dur)}, {"TrackMetaData", r.cur.meta}, {"TrackURI", r.cur.uri},
-			{"RelTime", hms(r.positionLocked())}, {"AbsTime", "NOT_IMPLEMENTED"}, {"RelCount", "2147483647"}, {"AbsCount", "2147483647"}}, nil
+		pos, dur := r.positionLocked(), r.cur.dur
+		if isVideo {
+			pos = vpos
+			if dur == 0 {
+				dur = vdur
+			}
+		}
+		return []kv{{"Track", track}, {"TrackDuration", hms(dur)}, {"TrackMetaData", r.cur.meta}, {"TrackURI", r.cur.uri},
+			{"RelTime", hms(pos)}, {"AbsTime", "NOT_IMPLEMENTED"}, {"RelCount", "2147483647"}, {"AbsCount", "2147483647"}}, nil
 	case "GetMediaInfo":
 		r.sync()
 		r.mu.Lock()
@@ -184,16 +201,22 @@ func (r *renderer) set(uri, meta, from string) error {
 		return errInvalidArgs
 	}
 	s := parseSong(uri, meta)
+	s.from = from
+	if s.video = isVideo(s); s.video && !video.DLNAOn() {
+		// Not offered (sinkProtocols), so not taken: a controller that sends one anyway is told so.
+		return errNotVideo
+	}
 	r.mu.Lock()
 	playing := r.state == stPlaying || r.state == stLoading
 	paused := r.state == stPaused
 	r.cur, r.next, r.ended = s, song{}, false
 	r.state = stStopped // a song set while another plays or waits paused is started afresh below
 	r.mu.Unlock()
-	slog.Info("dlna: song set", "from", from, "title", s.title)
+	slog.Info("dlna: song set", "from", from, "title", s.title, "video", s.video)
 	if paused && media.Get().Receiving() == home.DLNAName {
 		media.Get().Stop() // the old song is not left holding the speaker, paused, behind the new one
 	}
+	r.stopVideo()
 	if playing {
 		return r.play()
 	}
@@ -201,7 +224,7 @@ func (r *renderer) set(uri, meta, from string) error {
 	return nil
 }
 
-func (r *renderer) setNext(uri, meta string) error {
+func (r *renderer) setNext(uri, meta, from string) error {
 	if uri == "" {
 		r.mu.Lock()
 		r.next = song{}
@@ -211,8 +234,13 @@ func (r *renderer) setNext(uri, meta string) error {
 	if err := checkURI(uri); err != nil {
 		return errInvalidArgs
 	}
+	next := parseSong(uri, meta)
+	next.from = from
+	if next.video = isVideo(next); next.video && !video.DLNAOn() {
+		return errNotVideo
+	}
 	r.mu.Lock()
-	r.next = parseSong(uri, meta)
+	r.next = next
 	if r.state != stStopped {
 		r.ended = false
 	}
@@ -243,8 +271,13 @@ func (r *renderer) play() error {
 		r.pausedAt = time.Time{}
 		r.state = stPlaying
 		r.publishPositionLocked(1)
+		isVideo := r.cur.video
 		r.mu.Unlock()
-		media.Get().Resume()
+		if isVideo {
+			video.Resume()
+		} else {
+			media.Get().Resume()
+		}
 		r.f.e.changed()
 		return nil
 	}
@@ -261,9 +294,65 @@ func (r *renderer) play() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	r.fetching = cancel
 	r.mu.Unlock()
+	if s.video {
+		cancel()
+		return r.startVideo(gen, s)
+	}
 	r.f.e.changed()
 	safe.Go("dlna song", func() { r.start(ctx, gen, s) })
 	return nil
+}
+
+// startVideo hands the song to the video player, which asks on the screen first for an address it
+// has not been told to allow. The transport reads TRANSITIONING until the picture comes.
+func (r *renderer) startVideo(gen int, s song) error {
+	id, err := playVideo(video.Request{URL: s.uri, Title: s.title, Origin: video.FromDLNA, From: s.from})
+	r.mu.Lock()
+	if r.gen != gen {
+		r.mu.Unlock()
+		if err == nil {
+			stopVideoID(id)
+		}
+		return nil
+	}
+	if err != nil {
+		// Refused (off, busy, Not now): the song this renderer was playing plays on.
+		r.state = stStopped
+		r.mu.Unlock()
+		slog.Info("dlna: the video was not played", "title", s.title, "err", err)
+		r.f.e.changed()
+		return errNoContents
+	}
+	r.videoID, r.state, r.started, r.pausedAt, r.pausedFor = id, stLoading, time.Now(), time.Time{}, 0
+	r.mu.Unlock()
+	// Taken: the song this renderer was playing goes. Left playing, it would be nobody's to stop, since
+	// the transport is the video's now.
+	stopOurSong()
+	r.f.e.changed()
+	return nil
+}
+
+// The video player and the speaker, as startVideo uses them; tests put their own in.
+var (
+	playVideo   = video.Play
+	stopVideoID = video.StopID
+	stopOurSong = func() {
+		if media.Get().Receiving() == home.DLNAName {
+			media.ClearPosition()
+			media.Get().Stop()
+		}
+	}
+)
+
+// stopVideo stops the video the renderer started, if it is still the one playing.
+func (r *renderer) stopVideo() {
+	r.mu.Lock()
+	id := r.videoID
+	r.videoID = 0
+	r.mu.Unlock()
+	if id != 0 {
+		video.StopID(id)
+	}
 }
 
 // start fetches the song and hands it to the speaker.
@@ -336,9 +425,9 @@ func (r *renderer) start(ctx context.Context, gen int, s song) {
 }
 
 // publishPositionLocked tells what is shown with the music (the lyrics) where the song is, moving at
-// rate (1 playing, 0 paused). Wants r.mu.
+// rate (1 playing, 0 paused). Wants r.mu. A video has no lyrics.
 func (r *renderer) publishPositionLocked(rate float64) {
-	if r.cur.dur <= 0 {
+	if r.cur.dur <= 0 || r.cur.video {
 		return
 	}
 	media.SetPosition(media.Position{Title: r.cur.title, At: time.Now(), Pos: r.positionLocked(), Dur: r.cur.dur, Rate: rate})
@@ -382,8 +471,13 @@ func (r *renderer) pause() error {
 	r.mu.Lock()
 	r.state, r.pausedAt = stPaused, time.Now()
 	r.publishPositionLocked(0)
+	isVideo := r.cur.video
 	r.mu.Unlock()
-	media.Get().Pause()
+	if isVideo {
+		video.Pause()
+	} else {
+		media.Get().Pause()
+	}
 	r.f.e.changed()
 	return nil
 }
@@ -409,6 +503,7 @@ func (r *renderer) stop() {
 		media.ClearPosition()
 		media.Get().Stop()
 	}
+	r.stopVideo()
 	r.f.e.changed()
 }
 
@@ -426,10 +521,15 @@ func (r *renderer) off() {
 func (r *renderer) sync() string {
 	ours := media.Get().Receiving() == home.DLNAName
 	_, paused := media.Get().ScreenState()
+	vs := video.Current()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.state == "" {
 		r.state = stNoMedia
+	}
+	if r.cur.video {
+		r.syncVideoLocked(vs)
+		return r.state
 	}
 	switch {
 	case (r.state == stPlaying || r.state == stPaused) && !ours:
@@ -447,6 +547,55 @@ func (r *renderer) sync() string {
 		r.publishPositionLocked(1)
 	}
 	return r.state
+}
+
+// syncVideoLocked is sync for a video: the video player's state is the transport's. A video that is
+// no longer the player's is over: by itself only if the player says it played to its end. Wants r.mu.
+func (r *renderer) syncVideoLocked(vs video.State) {
+	if r.state != stPlaying && r.state != stPaused && r.state != stLoading {
+		return
+	}
+	if r.videoID != 0 && vs.AskID == r.videoID {
+		// Asked about on the screen while another video plays: still on its way.
+		r.state = stLoading
+		return
+	}
+	if r.videoID == 0 || vs.ID != r.videoID || !vs.Active() {
+		r.ended = r.videoID != 0 && vs.Ended == r.videoID
+		r.state, r.videoID = stStopped, 0
+		return
+	}
+	switch vs.Phase {
+	case video.Asking, video.Loading:
+		r.state = stLoading
+	case video.Playing:
+		if r.state == stPaused {
+			r.pausedFor += time.Since(r.pausedAt)
+			r.pausedAt = time.Time{}
+		}
+		r.state = stPlaying
+	case video.Paused:
+		if r.state != stPaused {
+			r.pausedAt = time.Now()
+		}
+		r.state = stPaused
+	}
+}
+
+// videoPosition is how far into the current song's video the player is, and how long it runs, when
+// the song is a video the player has.
+func (r *renderer) videoPosition() (pos, dur time.Duration, ok bool) {
+	r.mu.Lock()
+	id, isVideo := r.videoID, r.cur.video
+	r.mu.Unlock()
+	if !isVideo || id == 0 {
+		return 0, 0, false
+	}
+	vs := video.Current()
+	if vs.ID != id {
+		return 0, 0, false
+	}
+	return vs.Pos, vs.Dur, true
 }
 
 // watch notices a song ending and starts the one queued after it, while the renderer is on.
@@ -532,10 +681,18 @@ func parseSong(uri, meta string) song {
 		switch t := tok.(type) {
 		case xml.StartElement:
 			cur = t.Name.Local
-			if cur == "res" && s.dur == 0 {
+			if cur == "res" {
 				for _, a := range t.Attr {
-					if a.Name.Local == "duration" {
-						s.dur = parseHMS(a.Value)
+					switch a.Name.Local {
+					case "duration":
+						if s.dur == 0 {
+							s.dur = parseHMS(a.Value)
+						}
+					case "protocolInfo":
+						// http-get:*:video/mp4:*, the third of four.
+						if parts := strings.Split(a.Value, ":"); len(parts) >= 3 && s.mime == "" {
+							s.mime = strings.ToLower(parts[2])
+						}
 					}
 				}
 			}
@@ -561,12 +718,42 @@ func parseSong(uri, meta string) song {
 				if s.art == "" {
 					s.art = v
 				}
+			case "class":
+				if s.class == "" {
+					s.class = v
+				}
 			}
 		case xml.EndElement:
 			cur = ""
 		}
 	}
 	return s
+}
+
+// isVideo is whether a song is a video: what its description calls it, else its content type, else
+// what its address ends in.
+func isVideo(s song) bool {
+	switch c := strings.ToLower(s.class); {
+	case strings.HasPrefix(c, "object.item.videoitem"):
+		return true
+	case strings.HasPrefix(c, "object.item.audioitem"), strings.HasPrefix(c, "object.item.imageitem"):
+		return false
+	}
+	switch m := s.mime; {
+	case strings.HasPrefix(m, "video/"), m == "application/vnd.apple.mpegurl", m == "application/x-mpegurl":
+		return true
+	case m != "" && m != "*":
+		return false
+	}
+	u, err := url.Parse(s.uri)
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(path.Ext(u.Path)) {
+	case ".mp4", ".m4v", ".mkv", ".mov", ".ts", ".m2ts", ".m3u8":
+		return true
+	}
+	return false
 }
 
 // hms is a time as UPnP writes it: H:MM:SS.

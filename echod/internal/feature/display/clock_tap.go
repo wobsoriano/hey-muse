@@ -22,6 +22,7 @@ var clockTaps = []struct {
 	{"Assist", ""},
 	{"Dashboard", "dashboard"},
 	{"Nothing", "nothing"},
+	{"Deck", "deck"},
 }
 
 func clockTapOptions() []string {

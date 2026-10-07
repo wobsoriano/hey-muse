@@ -554,14 +554,14 @@ func (f *Feature) Weather() Weather {
 	}
 	// Nothing from Home Assistant: the device's own, when it has fetched some.
 	if w.Condition == "" {
-		return f.ownWeather()
-	}
-	if temp, ok := t.Value(entity, "temperature"); ok && temp != "" && temp != "None" {
+		w = f.ownWeather()
+	} else if temp, ok := t.Value(entity, "temperature"); ok && temp != "" && temp != "None" {
 		if i := strings.IndexByte(temp, '.'); i > 0 {
 			temp = temp[:i]
 		}
 		w.Temp = temp + "°"
 	}
+	w.Condition = f.SkyAt(w.Condition, time.Now())
 	return w
 }
 

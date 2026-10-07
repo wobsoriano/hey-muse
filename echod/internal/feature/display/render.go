@@ -29,6 +29,7 @@ import (
 	"github.com/HuskerMinion/techo5/echod/internal/feature/security"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/talkback"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/timer"
+	"github.com/HuskerMinion/techo5/echod/internal/feature/video"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/avatar"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/hass"
 	"github.com/HuskerMinion/techo5/echod/internal/lib/locale"
@@ -124,6 +125,10 @@ type scene struct {
 
 	// showCalendar is the calendar page, cal what it shows (render_calendar.go).
 	showCalendar bool
+
+	// showDeck is the deck page, deck what it shows (render_deck.go).
+	showDeck bool
+	deck     deckView
 
 	// alerts are the weather alerts at home and nearby (the clock's badge, the rain map's pills and
 	// outlines); showAlert is the alert page, on alertIdx of them, scrolled alertScroll lines (alerts.go).
@@ -222,17 +227,39 @@ type scene struct {
 
 	// artFx is the weather moving over the weather art, when the slideshow shows it (weather_art.go).
 	artFx skyFx
+
+	// video is the video player (feature/video); showVideo is its page, over everything but what covers
+	// it (videoCovered), and videoLive that page with its picture coming, when only its controls are
+	// drawn on the canvas; videoControls is the controls being up. showVideoAsk is the question about a
+	// DLNA video, videoAsk what it asks (render_video.go).
+	video         video.State
+	showVideo     bool
+	videoLive     bool
+	videoControls bool
+	showVideoAsk  bool
+	videoAsk      videoAsk
 }
 
 // renderer draws scenes onto one canvas. Faces are made once: parsing a font is cheap, but
 // building a face at each size is not something to do per frame.
 type renderer struct {
 	paint // the canvas, its size, and the settings screen's tap zones
+	// glow is the Glow style's images, kept between frames (glow.go).
+	glow glowBuffers
 
 	// flip is the flip clock's cards, at night or as a day style: what they show, and a flip under
 	// way; ink is what the LED and flip clocks are drawn in for the frame in hand.
 	flip flipState
 	ink  clockInk
+
+	// deckZones are the deck's buttons where they were last drawn, in order, read by the touch
+	// goroutine under zmu (render_deck.go).
+	deckZones []image.Rectangle
+
+	// videoZones are the video page's controls where they were last drawn, under zmu, and videoOver
+	// what of the canvas goes over the picture (render_video.go).
+	videoZones []image.Rectangle
+	videoOver  image.Rectangle
 
 	// styleFaces are the clock styles' faces, made as they are first needed (render_styles.go).
 	styleFaces map[styleFaceKey]font.Face
@@ -386,9 +413,25 @@ func newRenderer(dst *image.RGBA) *renderer {
 // draw composes a whole frame. Everything is repainted: the canvas is small and a full paint is
 // simpler than tracking what changed.
 func (r *renderer) draw(s scene) {
+	if !s.showDeck {
+		// Where the deck's buttons were is nothing to tap once something else is drawn there.
+		r.zmu.Lock()
+		r.deckZones = nil
+		r.zmu.Unlock()
+	}
 	if !s.showRadar {
 		r.shapes = alertOverlay{} // the alert shapes' picture is the page's size: kept only while the rain map is up
 	}
+	r.videoOver = image.Rectangle{}
+	// A video is over everything it is not covered by (video.go decides which), the night clock
+	// included, and has no header: the picture is the screen.
+	if s.showVideo {
+		r.videoOver = r.videoPage(s)
+		return
+	}
+	r.zmu.Lock()
+	r.videoZones = nil
+	r.zmu.Unlock()
 	r.artDrawn = false
 	r.setWeatherAt(image.Rectangle{})
 	r.setDateAt(image.Rectangle{})
@@ -401,7 +444,7 @@ func (r *renderer) draw(s scene) {
 	// and it stays up while an alarm or a timer rings (a tap on it stops the ring). A call has lifted
 	// the night light and takes the screen; a turn, a camera, an announcement or a reminder is shown in
 	// its place at the night light's level.
-	if s.redClock && s.phase == "idle" && s.call.Phase == phone.Idle && !s.setupAsking &&
+	if s.redClock && s.phase == "idle" && s.call.Phase == phone.Idle && !s.setupAsking && !s.showVideoAsk &&
 		!s.showWifi && !s.bt.Pairing && !s.showCamera && !s.showAnnouncement && !s.showReminder {
 		r.redClockPage(s)
 		return
@@ -428,6 +471,11 @@ func (r *renderer) draw(s scene) {
 	// it. Under a call and under a ringing alarm, both of which are somebody already being answered.
 	if s.setupAsking {
 		r.setupAskPage(s)
+		return
+	}
+	// A DLNA video asking to be shown, the same way: an answer from somebody at the device.
+	if s.showVideoAsk {
+		r.videoAskPage(s)
 		return
 	}
 	if s.bt.Pairing {
@@ -488,6 +536,13 @@ func (r *renderer) draw(s scene) {
 	}
 	if s.showCalendar {
 		r.calendarPage(s)
+		if s.showVolume {
+			r.volumeBar(s)
+		}
+		return
+	}
+	if s.showDeck {
+		r.deckPage(s)
 		if s.showVolume {
 			r.volumeBar(s)
 		}
@@ -648,6 +703,7 @@ func (r *renderer) timeAndDateAt(now time.Time, base int, dateSuffix string, ali
 // timers. With timers the clock moves up to make room. The next alarm, when it is within a day, follows
 // the date.
 func (r *renderer) bigClock(s scene) {
+	defer r.styleNameTag(s)
 	// The Sun without sunrise and sunset yet is the classic face, drawn as the classic face is.
 	if style := s.style.style(); style != styleClassic && !(style == styleSun && !s.style.sunOK) {
 		r.styledClock(s, style)

@@ -9,6 +9,8 @@ import (
 	"net"
 	"net/http"
 	"strings"
+
+	"github.com/HuskerMinion/techo5/echod/internal/feature/video"
 )
 
 // The web port side: the device's description, each service's description (its actions), and the
@@ -245,6 +247,7 @@ var (
 	errInvalidArgs   = soapError{402, "Invalid Args"}
 	errNotSupported  = soapError{710, "Seek mode not supported"}
 	errNoContents    = soapError{701, "Transition not available"}
+	errNotVideo      = soapError{714, "Illegal MIME-type"}
 )
 
 // control runs one action on a service.
@@ -348,14 +351,23 @@ func soapFault(w http.ResponseWriter, e soapError) {
 		`</UPnPError></detail></s:Fault></s:Body></s:Envelope>`)
 }
 
-// sinkProtocols are the songs the device takes: what DecodeStream plays.
-const sinkProtocols = "http-get:*:audio/mpeg:*,http-get:*:audio/mp3:*,http-get:*:audio/flac:*,http-get:*:audio/x-flac:*," +
+// audioProtocols are the songs the device takes: what DecodeStream plays.
+const audioProtocols = "http-get:*:audio/mpeg:*,http-get:*:audio/mp3:*,http-get:*:audio/flac:*,http-get:*:audio/x-flac:*," +
 	"http-get:*:audio/wav:*,http-get:*:audio/x-wav:*,http-get:*:audio/wave:*"
+
+// sinkProtocols are what the renderer says it takes: the songs, and videos as well while DLNA video is
+// on (feature/video), so a controller offers the device only what it will play.
+func sinkProtocols() string {
+	if video.DLNAOn() {
+		return audioProtocols + "," + video.DLNAProtocols
+	}
+	return audioProtocols
+}
 
 func connectionManager(name string) ([]kv, error) {
 	switch name {
 	case "GetProtocolInfo":
-		return []kv{{"Source", ""}, {"Sink", sinkProtocols}}, nil
+		return []kv{{"Source", ""}, {"Sink", sinkProtocols()}}, nil
 	case "GetCurrentConnectionIDs":
 		return []kv{{"ConnectionIDs", "0"}}, nil
 	case "GetCurrentConnectionInfo":

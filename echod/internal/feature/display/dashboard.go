@@ -47,7 +47,7 @@ func (d *Display) openDashboard() bool {
 	}
 	d.mu.Lock()
 	d.dash, d.dashHeld, d.dashTouched = true, false, time.Now()
-	d.drawer, d.sheet = false, false
+	d.drawer, d.sheet, d.deckUp = false, false, false
 	d.mu.Unlock()
 	slog.Info("dashboard up", "mode", dashboard.Get().Mode())
 	d.wake()
@@ -74,6 +74,7 @@ func (d *Display) dashboardAsked(up bool) {
 	d.mu.Lock()
 	if up {
 		d.dash, d.dashHeld, d.dashTouched, d.dashAwayUntil = true, true, time.Now(), time.Time{}
+		d.deckUp = false
 		d.mu.Unlock()
 		d.wake()
 		return
@@ -100,7 +101,7 @@ func (d *Display) dashScene(s *scene, sheetOrDrawer bool) {
 	d.mu.Unlock()
 
 	want := mode != config.DashboardOff && s.phase == "idle" && !sheetOrDrawer &&
-		!s.showCamera && !s.showWeather && !s.showRadar && !s.showCalendar && !s.showWifi && !s.bt.Pairing &&
+		!s.showCamera && !s.showWeather && !s.showRadar && !s.showCalendar && !s.showDeck && !s.showWifi && !s.bt.Pairing &&
 		(asked || (f.Idle() && !away && !s.nowPlaying))
 	s.showDash, s.dashMode = want, mode
 

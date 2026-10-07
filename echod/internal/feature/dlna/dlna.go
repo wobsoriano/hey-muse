@@ -23,6 +23,7 @@ import (
 
 	"github.com/HuskerMinion/techo5/echod/internal/component"
 	"github.com/HuskerMinion/techo5/echod/internal/config"
+	"github.com/HuskerMinion/techo5/echod/internal/feature/video"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/web"
 	"github.com/HuskerMinion/techo5/echod/internal/layout"
 )
@@ -56,6 +57,9 @@ func Get() *Feature {
 			OnCommand: shared.Set,
 		}
 		shared.r.f = shared
+		// A video's state is the transport's when the song is one: its controllers hear when it
+		// starts, pauses and ends.
+		video.Listen(func() { shared.e.changed() })
 	})
 	return shared
 }

@@ -53,6 +53,7 @@ import (
 	"github.com/HuskerMinion/techo5/echod/internal/feature/setup"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/talkback"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/timer"
+	"github.com/HuskerMinion/techo5/echod/internal/feature/video"
 	"github.com/HuskerMinion/techo5/echod/internal/feature/voice"
 	"github.com/HuskerMinion/techo5/echod/internal/hardware/ambient"
 	"github.com/HuskerMinion/techo5/echod/internal/hardware/buttons"
@@ -116,6 +117,13 @@ type Display struct {
 	clock *esphome.Select
 	// clockStyleSel is Clock style, how the clock looks all day (clock_style.go).
 	clockStyleSel *esphome.Select
+	// styleNamed is the clock style a swipe turned to, said on the clock until styleNamedUntil.
+	styleNamed      string
+	styleNamedUntil time.Time
+	// clockUp is the last frame having been the clock page itself, in whatever style: not the light
+	// before an alarm, the screensaver, the night clock or another page. A swipe turns the style only
+	// on it.
+	clockUp bool
 	// camTime is how long a camera opened from the screen stays up, and answerTime how long a turn's
 	// words do once it is over.
 	camTime    *esphome.Select
@@ -123,6 +131,8 @@ type Display struct {
 	turnStyle  *esphome.Select // Turn screen: Classic, Wave or Bars
 	// callBtn is the home screen's Call button, on or off (callbutton.go).
 	callBtn *esphome.Switch
+	// styleSwipeSw is Swipe between clock styles (style_swipe.go).
+	styleSwipeSw *esphome.Switch
 	// weatherFx is the weather page's sky moving, on or off (weatherfx.go).
 	weatherFx *esphome.Switch
 	// muteRing is the muted ring drawn thin and dim, on or off (mutering_spot.go).
@@ -241,6 +251,16 @@ type Display struct {
 	shots chan chan *image.RGBA
 	dev   *screen.Device
 	r     *roundRenderer
+
+	// The video face (video_spot.go), as the Show's display holds its page.
+	videoUntil    time.Time
+	videoOnScreen bool
+	videoTried    uint64
+	videoPainting bool
+	videoOver     image.Rectangle
+	vp            videoPainter
+	vask          askLatch
+	videoLit      uint64
 }
 
 var (
@@ -275,11 +295,13 @@ func build() *Display {
 	d.auto.OnCommand = func(on bool) { d.setAuto(on, true) }
 	d.clock = clockSelect(d.wake)
 	d.clockStyleSel = clockStyleSelect(d)
-	setup.SetScreen(&setup.ScreenChoices{Styles: clockStyleOptions(), Current: clockStyleIndex, Choose: d.setClockStyle})
+	setup.SetScreen(&setup.ScreenChoices{Styles: clockStyleOptions(), Current: clockStyleIndex, Choose: d.setClockStyle,
+		Places: spotWorld, Swipe: func(on bool) { setStyleSwipe(d.styleSwipeSw, on) }})
 	d.camTime = cameraTimeSelect()
 	d.answerTime = answerTimeSelect()
 	d.turnStyle = turnStyleSelect(d.wake)
 	d.callBtn = callButtonSwitch(d.wake)
+	d.styleSwipeSw = styleSwipeSwitch()
 	d.weatherFx = weatherAnimationSwitch(d.wake)
 	d.muteRing = muteRingSwitch(d.wake)
 	d.lang = langSelect()
@@ -327,7 +349,7 @@ func (d *Display) Name() string { return "screen" }
 func (d *Display) turnStyleSel() *esphome.Select { return d.turnStyle }
 
 func (d *Display) Entities() []esphome.Entity {
-	return []esphome.Entity{d.light, d.auto, d.clock, d.clockStyleSel, d.camTime, d.answerTime, d.turnStyle, d.callBtn, d.weatherFx, d.muteRing, d.lang}
+	return []esphome.Entity{d.light, d.auto, d.clock, d.clockStyleSel, d.camTime, d.answerTime, d.turnStyle, d.callBtn, d.weatherFx, d.muteRing, d.lang, d.styleSwipeSw}
 }
 
 // Restore lights the panel the way it was left.
@@ -338,6 +360,7 @@ func (d *Display) Restore(c config.Config) {
 	d.answerTime.Set(answerTimes[answerTimeIndex()].label)
 	d.turnStyle.Set(turnStyles[turnStyleIndex()].label)
 	setCallButton(d.callBtn, c.Screen.CallButton)
+	d.styleSwipeSw.Set(!c.Screen.NoStyleSwipe)
 	setWeatherAnimation(d.weatherFx, !c.Screen.WeatherStill)
 	setMuteRingSubtle(d.muteRing, c.Screen.MuteRingSubtle)
 	d.setAuto(c.Screen.Auto, false)
@@ -560,6 +583,20 @@ func (d *Display) gesture(g touch.Gesture) {
 		d.wake()
 		return
 	}
+	// A DLNA video asking to be shown, the same way; then the video face, which takes every finger.
+	if _, _, _, asking := video.Get().Asking(); asking {
+		if id, ok := d.vask.answerable(time.Now()); ok && g.Kind == touch.Tap {
+			if allow, answered := askTapSpot(g.Y); answered {
+				go video.Get().Answer(id, allow)
+			}
+		}
+		d.wake()
+		return
+	}
+	if d.videoUpSpot() {
+		d.videoGestureSpot(g)
+		return
+	}
 	// The microphone open for an announcement: its face takes every gesture, because a face nobody
 	// can leave is one you have to wait out. A tap is "that is all of it" and sends what was said; a
 	// hold throws it away.
@@ -694,6 +731,20 @@ func (d *Display) gesture(g touch.Gesture) {
 		media.Get().Adjust(+1)
 	case touch.SwipeDown:
 		media.Get().Adjust(-1)
+	case touch.SwipeLeft, touch.SwipeRight:
+		// Across the clock face, the next clock style or the one before: only on the face itself, not
+		// while a turn is on or its words are up, nor over the screensaver or the light before an alarm.
+		d.mu.Lock()
+		idle, up := d.view.Phase == "idle", d.clockUp
+		d.mu.Unlock()
+		if !idle || !up || d.answerUp(time.Now()) || !styleSwipeOn() {
+			return
+		}
+		if g.Kind == touch.SwipeLeft {
+			d.stepClockStyle(+1)
+		} else {
+			d.stepClockStyle(-1)
+		}
 	case touch.Hold:
 		d.mu.Lock()
 		d.openMenu(modeMain, itemTalk)
@@ -1062,6 +1113,9 @@ func (d *Display) Start(context.Context) error {
 	}
 	d.dev = dev
 	d.r = newRoundRenderer(dev.Canvas())
+	fw, fh := dev.FrameSize()
+	w, h := dev.Size()
+	video.Get().UseScreen(video.Screen{W: w, H: h, Rotated: dev.Rotated(), PixFmt: dev.PixFmt()}, fw, fh)
 	d.settleScreen(dev)
 	slog.Info("screen open", "fb", dev.String())
 	return nil
@@ -1081,6 +1135,13 @@ func (d *Display) Run(ctx context.Context) error {
 	go d.settle(ctx)
 	for {
 		wait := d.frame()
+		if d.videoPainting {
+			d.vp.paint(ctx, d.dev, d.poke, wait, d.videoOver)
+			if ctx.Err() != nil {
+				return nil
+			}
+			continue
+		}
 		select {
 		case <-ctx.Done():
 			return nil
@@ -1091,6 +1152,7 @@ func (d *Display) Run(ctx context.Context) error {
 }
 
 func (d *Display) frame() time.Duration {
+	d.videoPainting, d.vp.dark = false, false
 	now := time.Now()
 	d.mu.Lock()
 	nightChanged := d.wasNight != inNight(now)
@@ -1161,12 +1223,30 @@ func (d *Display) frame() time.Duration {
 	d.mu.Unlock()
 
 	_, reminding := remind.Get().Showing()
+	vs := video.Get().State()
 	busy := view.Phase != "idle" || sheetOpen || ringingNow(now).any() || phone.Get().Busy() || pinIsOpen() ||
-		sunriseProgress(now) > 0 || setup.Get().Waiting() || reminding
+		sunriseProgress(now) > 0 || setup.Get().Waiting() || reminding || vs.Active()
 	if d.awayTick(now, on, busy, inNight(now)) {
 		d.mu.Lock()
 		on = d.on
 		d.mu.Unlock()
+	}
+	if vs.Active() && vs.ID != d.videoLit && (vs.Phase != video.Asking || !inNight(now)) {
+		// A video starting lights a dark face, once per video; a DLNA video's question only by day.
+		d.videoLit = vs.ID
+		if !on {
+			d.apply(true, d.ceilingOrDefault(), false)
+			on = true
+		}
+	}
+	if !on && !video.Get().State().Active() {
+		d.vp.drop() // a video that ended while the panel was dark: its frame goes with it
+	}
+	if !on && vs.Frames {
+		// Dark with a video playing: its frames are taken as they fall due so its sound goes on.
+		video.Get().Covered(false)
+		d.videoPainting, d.vp.dark, d.videoOver = true, true, image.Rectangle{}
+		return videoRecheck
 	}
 	if !on {
 		return time.Hour
@@ -1225,6 +1305,7 @@ func (d *Display) frame() time.Duration {
 	s.call = phone.Get().State()
 	s.weather = home.Get().Weather()
 	s.style = styleFactsFor(clockStyle(), now)
+	s.style.named = d.styleName(now)
 	s.camera, s.showCamera = home.Get().Camera()
 	s.cameraSound, s.cameraSoundLive = home.Get().CameraSoundOn(), home.Get().CameraSoundLive()
 	if s.showCamera {
@@ -1246,7 +1327,7 @@ func (d *Display) frame() time.Duration {
 		if v := home.Get().Radar(); s.radarOn {
 			s.radar = v
 		} else {
-			s.sky = skyNow(weatherNow(s.weather, s.forecast))
+			s.sky = skyNow(weatherNow(s.weather, s.forecast, s.now))
 		}
 	}
 	s.nowPlaying = s.phase == "idle" && d.showsNowPlaying()
@@ -1303,6 +1384,7 @@ func (d *Display) frame() time.Duration {
 		}
 	}
 	d.mu.Lock()
+	d.clockUp = boring && s.sunrise == 0 && s.slideshowScreensaver == nil
 	if !boring {
 		d.slideshowIdleSince = time.Time{}
 	} else if d.slideshowIdleSince.IsZero() {
@@ -1322,6 +1404,24 @@ func (d *Display) frame() time.Duration {
 
 	d.dashSceneSpot(&s)
 	s.callButton = callButton.Load()
+	d.videoSceneSpot(&s, now)
+	if s.showVideo && s.videoLive {
+		// The picture's own frames go to the panel; the canvas holds only the controls.
+		d.r.draw(s)
+		d.videoPainting, d.videoOver = true, d.r.videoOver
+		for pending := true; pending; {
+			select {
+			case reply := <-d.shots:
+				reply <- d.vp.shot(d.dev, d.dev.Canvas())
+			default:
+				pending = false
+			}
+		}
+		return d.videoNextSpot(now)
+	}
+	if !s.showVideo && !s.video.Active() {
+		d.vp.drop() // kept while the video is only covered (the Show's frame loop says why)
+	}
 	drawn := time.Now()
 	d.r.draw(s)
 	d.mu.Lock()

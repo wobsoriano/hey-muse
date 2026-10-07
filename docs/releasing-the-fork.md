@@ -55,6 +55,9 @@ Three helpers go into the root filesystem from `bin/` when they are there.
 - `bin/techo5-aec-arm` and `bin/techo5-librespot-arm`, the echo canceller and the Spotify receiver.
   Neither builds on a Mac. Copy them out of an upstream release's root filesystem, where they are
   `usr/local/bin/techo5-aec` and `usr/local/bin/techo5-librespot`.
+- `bin/techo5-ffmpeg-arm`, the video decoder. TECHO5 builds it in WSL with
+  `tools/linux/build-ffmpeg.sh`, and the image build stops without it. From a Mac, take it from the
+  same TECHO5 image, as `usr/local/bin/techo5-ffmpeg`.
 
 ## Cut a release
 
@@ -76,7 +79,7 @@ Assistant's update card shows a version with a suffix is **not verified**.
 2. Make sure the three helpers are in `bin/`.
 
    ```sh
-   ls -l bin/techo5-pico-arm bin/techo5-aec-arm bin/techo5-librespot-arm
+   ls -l bin/techo5-pico-arm bin/techo5-aec-arm bin/techo5-librespot-arm bin/techo5-ffmpeg-arm
    ```
 
 3. Build the daemon and the root filesystem, and install it on the Show to try it. The root

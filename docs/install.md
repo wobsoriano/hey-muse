@@ -281,8 +281,35 @@ Then:
 - **Security**: SSH, and the camera and screen pages on port 8181, have switches on the settings
   screen (Privacy) and in Home Assistant. SSH keys only come from Home Assistant (`esphome.<device>_ssh_keys`).
 - **Updates**: the firmware update entity installs new releases into the other slot, reboots, and
-  falls back if the new slot does not settle.
+  falls back if the new slot does not settle. The boot image is not part of an update; see
+  [Updating the boot image](#updating-the-boot-image).
 - The old Android integrations for the unit (ShowAssist, the View Assist companion) can be deleted.
+
+## Updating the boot image
+
+A firmware update replaces the root filesystem and leaves the boot image (the kernel) alone. When a
+release has a new boot image for your model, put it on over SSH. v1.0.1 has one for the 1st gen
+Show 5 (`techo5-boot-checkers-v1.0.1.img`) and the Show 8 (`techo5-boot-crown-v1.0.1.img`), so a
+quick tap to unmute no longer leaves the camera off. The 2nd gen Show 5 doesn't need it.
+
+Turn **SSH** on, then from the folder you downloaded the image to:
+
+```
+scp -O techo5-boot-<board>-v1.0.1.img root@<address>:/tmp/boot.img
+ssh root@<address>
+```
+
+On the unit, check that the board is the one the image is for (`checkers` or `crown`), that the
+checksum matches the release's `SHA256SUMS`, then write it to the boot partition and restart:
+
+```
+grep -o 'androidboot.product=[a-z]*' /proc/cmdline
+sha256sum /tmp/boot.img
+p=$(grep -l '^PARTNAME=boot$' /sys/class/block/mmcblk0p*/uevent); p=/dev/$(basename $(dirname $p))
+[ -b "$p" ] && dd if=/tmp/boot.img of=$p bs=1M conv=fsync && sync && reboot
+```
+
+Settings, slots and Home Assistant are kept; only the kernel and the rescue environment change.
 
 ## Radio
 

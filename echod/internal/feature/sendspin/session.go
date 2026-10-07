@@ -628,13 +628,28 @@ func (s *session) told(cmd protocol.PlayerCommand) {
 // reported echoes what took effect. The server has no other way to learn a command landed, and the
 // protocol carries no position, so this is the whole of what we say back.
 func (s *session) reported() {
-	if err := s.client.SendState(protocol.PlayerState{
+	if err := s.client.Send("client/state", clientState{Player: playerState{
 		State:  "synchronized",
 		Volume: config.Get().Speaker.Volume * 100 / speaker.VolumeSteps,
 		Muted:  s.muted,
-	}); err != nil {
+	}}); err != nil {
 		slog.Debug("sendspin client state", "err", err)
 	}
+}
+
+// clientState and playerState are the library's ClientStateMessage and PlayerState without its
+// omitempty, which leaves out a false muted and a zero volume. A player that lists the volume and mute
+// commands has to say both every time: without muted, an unmute never reached the server, which kept
+// the true it last heard, and Music Assistant took that back with the next state, so the device read
+// muted again while it played.
+type clientState struct {
+	Player playerState `json:"player"`
+}
+
+type playerState struct {
+	State  string `json:"state"`
+	Volume int    `json:"volume"`
+	Muted  bool   `json:"muted"`
 }
 
 // synced keeps the clock filter fed. It owns TimeSyncResp: nothing else may read that channel, or the

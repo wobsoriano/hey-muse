@@ -185,7 +185,7 @@ func lastChange(service string) string {
 		inner = `<Event xmlns="urn:schemas-upnp-org:metadata-1-0/RCS/"><InstanceID val="0">` +
 			`<Volume channel="Master" val="` + strconv.Itoa(vol) + `"/><Mute channel="Master" val="0"/></InstanceID></Event>`
 	case "ConnectionManager":
-		return `<e:propertyset xmlns:e="urn:schemas-upnp-org:event-1-0"><e:property><SinkProtocolInfo>` + esc(sinkProtocols) +
+		return `<e:propertyset xmlns:e="urn:schemas-upnp-org:event-1-0"><e:property><SinkProtocolInfo>` + esc(sinkProtocols()) +
 			`</SinkProtocolInfo></e:property><e:property><SourceProtocolInfo></SourceProtocolInfo></e:property>` +
 			`<e:property><CurrentConnectionIDs>0</CurrentConnectionIDs></e:property></e:propertyset>`
 	}

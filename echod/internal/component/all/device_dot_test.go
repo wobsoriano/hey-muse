@@ -11,7 +11,7 @@ var notOnThisDevice = []string{
 	"slideshow_folder", "slideshow_interval",
 	"slideshow_mode", "slideshow_screensaver_idle", "slideshow_screensaver_overlay",
 	"slideshow_shuffle", "slideshow_subfolders", "slideshow_weather_art", "slideshow_whole_photo", "talk_back", "weather_alerts",
-	"screen_clock_tap", "screen_dashboard_return", "screen_dashboard_tiles",
+	"screen_clock_tap", "screen_dashboard_return", "screen_dashboard_tiles", "screen_clock_style_swipe",
 }
 
 var deviceSpecific = []string{"airplay", "audio_output", "spotify_connect"}
