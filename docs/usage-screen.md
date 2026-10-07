@@ -59,6 +59,8 @@ What to expect:
 - The numbers move only while a Claude Code session is open on that computer. After 15 minutes with
   no board, the foot of the screen says how old the numbers are.
 - "Resets in" counts down on the device by itself. A meter whose time has passed is drawn empty.
+- Claude Code leaves an allowance out while nothing of it is used. The script sends that as 0%, with
+  no time to start over, so the row stays on the screen.
 - Only the two allowances Claude Code hands over are shown. A per-model weekly allowance is not among
   them.
 

@@ -22,13 +22,14 @@ AGAIN = 300
 
 def board(session):
     limits = session.get("rate_limits") or {}
+    if not any("used_percentage" in (limits.get(name) or {}) for name in ("five_hour", "seven_day")):
+        return None
+    # Claude Code leaves a window out while nothing has been used in it, which is a meter at nothing
+    # with no time to start over, not a meter to take off the screen.
     rows = []
     for label, name in (("Current", "five_hour"), ("Weekly", "seven_day")):
         window = limits.get(name) or {}
-        if "used_percentage" in window:
-            rows.append({"label": label, "percent": window["used_percentage"], "resets_at": int(window.get("resets_at") or 0)})
-    if not rows:
-        return None
+        rows.append({"label": label, "percent": window.get("used_percentage") or 0, "resets_at": int(window.get("resets_at") or 0)})
     return {"title": "Usage", "note": (session.get("model") or {}).get("display_name", ""), "rows": rows}
 
 
