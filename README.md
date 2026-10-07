@@ -1,8 +1,8 @@
-# TECHO5 Muse
+# Hey Muse
 
-An Amazon Echo Show 5 that answers as [Muse](https://gadgets.muse.ai), Meta's AI agent. Say the wake
-word, ask something, and your own Muse answers out loud. No Alexa, no Amazon cloud, and no Home
-Assistant needed.
+An Amazon Echo Show 5 that answers as [Muse](https://gadgets.muse.ai), Meta's AI agent. Say "Hey
+Muse", ask something, and your own Muse answers out loud, with its character on the screen. No
+Alexa, no Amazon cloud, and no Home Assistant needed.
 
 This is a fork of [TECHO5](https://github.com/HuskerMinion/techo5) by HuskerMinion, which replaces
 the Echo's Android with a small Linux and one Go daemon. TECHO5 does the hard part: the kernel, the
@@ -45,8 +45,8 @@ On an Echo Show 5 2nd gen with its bootloader unlocked and LineageOS 18.1 on it,
 [TECHO5's getting started guide](docs/getting-started.md) leaves you:
 
 ```sh
-git clone https://github.com/wobsoriano/techo5-muse
-cd techo5-muse
+git clone https://github.com/wobsoriano/hey-muse
+cd hey-muse
 python3 tools/install-show.py
 ```
 
@@ -57,8 +57,9 @@ of this fork, checks it against the fork's signing key, and asks once before it 
 A device already running upstream TECHO5 does not move to this fork by itself, since it trusts
 upstream's key. [docs/releasing-the-fork.md](docs/releasing-the-fork.md) says how to move one over.
 
-Then follow [docs/muse.md](docs/muse.md): choose Muse on the setup page, paste your token, and pair
-in the Muse app. A device on this fork finds later releases of it by itself.
+Then follow [docs/muse.md](docs/muse.md): choose Muse on the setup page, paste your token, pair in
+the Muse app, and pick **Hey Muse** as the wake word on the device (Settings, Sound, Wake word). A
+new device listens for "Alexa" until you do. A device on this fork finds later releases of it by itself.
 
 The release carries a boot image for the Show 5 2nd gen only, the one board this was tried on.
 

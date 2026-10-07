@@ -68,7 +68,7 @@ if [ -n "${PREBUILT_DAEMON:-}" ]; then
 	# Only what CI built from this release's own tag (spot-vX.Y.Z for BUILD_TAGS=spot): anything else
 	# carries another version, and Home Assistant would offer the update forever after it installed.
 	tag=${BUILD_TAGS:+$BUILD_TAGS-}$VERSION
-	gh attestation verify "$PREBUILT_DAEMON" --repo wobsoriano/techo5-muse --source-ref "refs/tags/$tag" >/dev/null \
+	gh attestation verify "$PREBUILT_DAEMON" --repo wobsoriano/hey-muse --source-ref "refs/tags/$tag" >/dev/null \
 		|| { echo "$PREBUILT_DAEMON is not attested as built by CI from tag $tag" >&2; exit 1; }
 	cp "$PREBUILT_DAEMON" "$ROOT/bin/echod-arm"
 else
