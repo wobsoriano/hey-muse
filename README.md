@@ -26,6 +26,8 @@ who answers. Everything else about the device is TECHO5's, and its own README is
   and show a few screen pages, asked aloud or from the Muse app.
 - **The Muse character on screen** during a turn, if you generate it from your own copy of Meta's
   SDK. The character is Meta's and is not in this repository.
+- **A Usage screen.** A clock style that shows meters sent from your computer, made for a Claude
+  Code plan's usage. See [docs/usage-screen.md](docs/usage-screen.md).
 
 Smart home control is not part of this. The Echo is the voice. Reaching your lights and speakers is
 Muse's own business, for example through [Muse Home Link](https://gadgets.muse.ai/home-link).

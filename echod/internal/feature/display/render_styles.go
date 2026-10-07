@@ -79,6 +79,11 @@ func capHeight(face font.Face) int {
 
 // styledClock is the home screen in a clock style other than the classic one.
 func (r *renderer) styledClock(s scene, style string) {
+	if style == styleUsage {
+		r.usageStyle(s)
+		r.alertBadge(s)
+		return
+	}
 	timers := false
 	for _, t := range s.timers {
 		timers = timers || t.Active

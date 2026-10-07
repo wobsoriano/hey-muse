@@ -1788,6 +1788,7 @@ func (d *Display) Start(context.Context) error {
 	d.wide = w > 1000 || h > 1000
 	d.mu.Unlock()
 	d.avatar = loadAvatar()
+	d.followMeters()
 	fw, fh := dev.FrameSize()
 	video.Get().UseScreen(video.Screen{W: w, H: h, Rotated: dev.Rotated(), PixFmt: dev.PixFmt()}, fw, fh)
 	d.mu.Lock()
