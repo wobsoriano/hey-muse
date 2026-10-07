@@ -422,17 +422,42 @@ func TestAskVoiceNote(t *testing.T) {
 	if seen.wavSHA != hex.EncodeToString(sum[:]) {
 		t.Error("the recording did not arrive intact")
 	}
-	// As the firmware sends it: no device_id, the recording as one attachment, and the body in
-	// 16 KB pieces after a request frame that carries none of it.
-	wantBody := map[string]any{"message": "", "output_modality": "text", "items": []any{
+	// As the firmware sends it, the recording as one attachment and the body in 16 KB pieces after
+	// a request frame that carries none of it, and with the device named, as a typed message is.
+	wantBody := map[string]any{"message": "", "output_modality": "text", "device_id": "homelink-a1b2c3", "items": []any{
 		map[string]any{"type": "file", "mime_type": "audio/wav", "filename": "voice_note.wav"},
 	}}
 	if !reflect.DeepEqual(seen.body, wantBody) {
 		t.Errorf("chat body = %v", seen.body)
 	}
-	bodyLen := len(`{"message":"","output_modality":"text","items":[{"type":"file","mime_type":"audio/wav","filename":"voice_note.wav","data_base64":""}]}`) + (len(wav)+2)/3*4
+	bodyLen := len(`{"message":"","output_modality":"text","device_id":"homelink-a1b2c3","items":[{"type":"file","mime_type":"audio/wav","filename":"voice_note.wav","data_base64":""}]}`) + (len(wav)+2)/3*4
 	if wantChunks := (bodyLen + bodyChunk - 1) / bodyChunk; seen.inRequest || seen.chunks != wantChunks {
 		t.Errorf("sent in %d body chunks (whole in the request: %v), want %d", seen.chunks, seen.inRequest, wantChunks)
+	}
+}
+
+// A command for a turn the device began comes as an event on the chat stream, not on the control
+// stream, and is answered the way the other kind is: run, and a link.result with the event's id.
+func TestACommandOnTheChatStreamIsRunAndAnswered(t *testing.T) {
+	ran := make(chan string, 1)
+	h, vm := online(t, func(_ *harness, _ *State, cfg *Config) {
+		cfg.Commands = append(cfg.Commands, Command{Name: "volume", Handler: func(_ context.Context, args json.RawMessage) (any, error) {
+			ran <- string(args)
+			return map[string]string{"result": "volume is 10 of 30"}, nil
+		}})
+	})
+	// The chat stream opens with the first question.
+	if _, err := h.client.Ask(context.Background(), Text("hello"), func(ReplyEvent) {}); err != nil {
+		t.Fatal(err)
+	}
+	vm.streamBytes([]byte(`{"type":"event","event":"client.invoke","ts_ms":1,"payload":{"command_id":"volume",` +
+		`"invoke_id":"inv-chat","params_json":"{\"level\":10}","timeout_ms":30000}}` + "\n"))
+	if got := receive(t, ran, "the command"); got != `{"level":10}` {
+		t.Errorf("the command was given %s", got)
+	}
+	want := map[string]any{"method": "link.result", "id": "inv-chat", "ok": true, "payload": map[string]any{"result": "volume is 10 of 30"}}
+	if got := receive(t, vm.results, "link.result"); !reflect.DeepEqual(got, want) {
+		t.Errorf("result = %v, want %v", got, want)
 	}
 }
 

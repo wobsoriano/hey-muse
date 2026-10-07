@@ -261,8 +261,12 @@ func (sub *subscription) onFrame(f frame) {
 		}
 		var e chatEvent
 		// Lines of any other type are the acknowledgment of the subscription itself.
-		if json.Unmarshal(sub.buf[:end], &e) == nil && e.Type == "event" && sub.s.turn != nil {
-			sub.s.turn.add(e)
+		if json.Unmarshal(sub.buf[:end], &e) == nil && e.Type == "event" {
+			if e.Event == clientInvoke {
+				sub.s.clientInvoked(e)
+			} else if sub.s.turn != nil {
+				sub.s.turn.add(e)
+			}
 		}
 		sub.buf = sub.buf[end+1:]
 	}
@@ -632,6 +636,31 @@ func (s *session) handle(m controlMessage) (over bool, out outcome, err error) {
 	return false, 0, nil
 }
 
+// clientInvoke is how a command reaches the device when the turn it belongs to is the device's own:
+// an event on the chat stream, where one from a turn started in the Muse app is link.invoke on the
+// control stream. Meta's SDK handles only the second, and a gadget that sends voice notes with its
+// device_id is sent the first: a Show 5 asked aloud to change its volume ran nothing, and Muse
+// waited out node_invoke_timeout. The answer is the same link.result, with the event's invoke_id.
+const clientInvoke = "client.invoke"
+
+// clientInvoked takes a client.invoke event as the invoke it is. Called with session.mu held, so
+// it only hands the command on.
+func (s *session) clientInvoked(e chatEvent) {
+	id := e.str("invoke_id")
+	if id == "" {
+		return
+	}
+	quoted, _ := json.Marshal(id)
+	command, _ := json.Marshal(e.str("command_id"))
+	m := controlMessage{
+		ID:        quoted,
+		Command:   command,
+		Params:    json.RawMessage(e.str("params_json")),
+		TimeoutMS: e.Payload["timeout_ms"],
+	}
+	s.wg.Go(func() { s.invoke(m) })
+}
+
 // invokeResult is link.result: the invoke's id, and either a payload or an error.
 type invokeResult struct {
 	Method  string          `json:"method"`
@@ -701,8 +730,10 @@ func (s *session) runCommand(name string, m controlMessage) (payload json.RawMes
 	return json.Marshal(value)
 }
 
-// chatBody is what POST /chat/stream takes. A voice note leaves device_id out, as the firmware
-// whose upload this copies does.
+// chatBody is what POST /chat/stream takes. device_id is what has Muse take the turn as this
+// device's and send its commands back here (Meta's Linux client, send_chat). The firmware whose
+// voice note upload this copies leaves it out, and without it Muse took "increase the volume",
+// said to the device, to be about the phone.
 type chatBody struct {
 	Message        string     `json:"message"`
 	OutputModality string     `json:"output_modality"`
@@ -772,7 +803,7 @@ func (s *session) sendChat(ctx context.Context, in AskInput, ack *request) (int6
 
 	// The recording rides as a base64 attachment, the way Meta's voice gadgets send it, with the
 	// body in pieces after a request that carries none.
-	body, err := json.Marshal(chatBody{OutputModality: "text", Items: []chatItem{{
+	body, err := json.Marshal(chatBody{OutputModality: "text", DeviceID: s.p.nodeID, Items: []chatItem{{
 		Type:       "file",
 		MIMEType:   "audio/wav",
 		Filename:   "voice_note.wav",
