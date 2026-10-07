@@ -133,6 +133,9 @@ character listens, thinks and talks as the turn does. With the character, a turn
 answer is spoken, and what Muse heard and answered is in your Muse chat. Without it, a turn shows the
 words as it does for any other assistant. The Spot and the Dot do not draw it.
 
+A Show starts up on the name HeyMuse. With the character installed and Muse answering, the
+character stands over the name while the device comes up.
+
 The character is Meta's. Meta says its Apache license does not cover the character, so neither the
 character nor the code that draws it is in this repository or in any release. You make the pictures
 from your own checkout of Meta's SDK, for your own device. Do not publish them.

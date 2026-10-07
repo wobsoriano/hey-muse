@@ -175,7 +175,6 @@ type Display struct {
 	// splashMin has passed.
 	booting bool
 	started time.Time
-	logo    *splash
 
 	// sheet is the settings sheet being shown; restartArm is the first of the two taps Restart wants.
 	sheet      bool
@@ -1788,7 +1787,6 @@ func (d *Display) Start(context.Context) error {
 	d.mu.Lock()
 	d.wide = w > 1000 || h > 1000
 	d.mu.Unlock()
-	d.logo = newSplash(w, h)
 	d.avatar = loadAvatar()
 	fw, fh := dev.FrameSize()
 	video.Get().UseScreen(video.Screen{W: w, H: h, Rotated: dev.Rotated(), PixFmt: dev.PixFmt()}, fw, fh)
@@ -1962,7 +1960,7 @@ func (d *Display) frame() time.Duration {
 	}
 	d.mu.Unlock()
 	if booting {
-		d.r.drawSplash(d.logo, now.Sub(started))
+		d.r.drawSplash(d.avatar, now, now.Sub(started))
 		if err := d.dev.Present(); err != nil {
 			slog.Warn("presenting the frame failed", "err", err)
 		}

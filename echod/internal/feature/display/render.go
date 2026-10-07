@@ -318,6 +318,7 @@ type renderer struct {
 	clock  font.Face // the big time
 	big    font.Face // a large reading, like today's temperature
 	ampm   font.Face
+	mark   font.Face // the name on the splash, under the character
 	title  font.Face // "Listening…"
 	body   font.Face // transcript and reply
 	small  font.Face // date, corner clock, footer
@@ -397,6 +398,7 @@ func newRenderer(dst *image.RGBA) *renderer {
 	}
 	r.clock = face(bold, 230)
 	r.big = face(bold, 100)
+	r.mark = face(bold, 64)
 	r.ampm = face(bold, 56)
 	r.title = face(bold, 48)
 	r.body = face(regular, 42)
